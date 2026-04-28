@@ -73,6 +73,13 @@ export default function App() {
 
       unsubscribeHelper = await listenToHelperEvents((event) => {
         if (cancelled) return;
+
+        if (event.event === 'hotkey_error') {
+          setSettingsError(`Hotkey registration failed: ${event.text ?? 'unknown error'}. Please set a different hotkey in Settings.`);
+          setPage('settings');
+          return;
+        }
+
         const next = reduceHelperEvent(
           { ...createInitialState().translation, input: inputRef.current, notice: noticeRef.current, error: null },
           event

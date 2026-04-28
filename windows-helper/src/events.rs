@@ -23,4 +23,12 @@ impl HelperEvent {
             source: Some("selection"),
         }
     }
+
+    pub fn hotkey_error(message: String) -> Self {
+        Self {
+            event: "hotkey_error",
+            text: Some(message),
+            source: None,
+        }
+    }
 }
