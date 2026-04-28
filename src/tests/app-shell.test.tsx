@@ -260,7 +260,10 @@ it('shows a settings error message when auto-save fails', async () => {
     target: { value: 'https://api.example.com/v1' }
   });
 
-  expect(await screen.findByText('⚠ Save failed.')).toBeInTheDocument();
+  // Wait until the error text appears — this means the rejected save has been
+  // caught and handled by App, so no unhandled rejection leaks after the test.
+  await screen.findByText('⚠ Save failed.');
+  await waitFor(() => expect(mockedSaveSettingsWithApiKey).toHaveBeenCalledTimes(1));
 });
 
 it('auto-saves settings when the user edits fields', async () => {

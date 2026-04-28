@@ -128,7 +128,7 @@ export function SettingsDialog({
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
       lastSavedKeyRef.current = saveKey;
-      void onSave(values);
+      void onSave(values).catch(() => { /* error surfaced via App's settingsError state */ });
     }, 400);
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
