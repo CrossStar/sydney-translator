@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(cmd.exe *)",
+      "Bash(node *)",
+      "WebSearch",
+      "mcp__context7__resolve-library-id",
+      "Bash(python *)",
+      "Bash(cargo check *)",
+      "Bash(npm test *)",
+      "Bash(cargo test *)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsc *)",
+      "Bash(git -C \"F:/Workspace/translator\" remote -v)",
+      "Bash(git -C \"F:/Workspace/translator\" log --oneline -5)",
+      "Bash(git -C \"F:/Workspace/translator\" status)",
+      "Bash(git *)"
+    ]
+  }
+}

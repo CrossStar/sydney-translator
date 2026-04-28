@@ -1,0 +1,125 @@
+use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
+use std::env;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::fs;
+use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AppSettings {
+    pub base_url: String,
+    pub model: String,
+    pub source_language: String,
+    pub target_language: String,
+    pub global_hotkey: String,
+    pub selection_mode: String,
+    #[serde(default = "default_ui_language")]
+    pub ui_language: String,
+    #[serde(default = "default_close_button_action")]
+    pub close_button_action: String,
+}
+
+fn default_close_button_action() -> String {
+    "ask".to_string()
+}
+
+fn default_ui_language() -> String {
+    "en".to_string()
+}
+
+#[derive(Debug)]
+pub enum SettingsError {
+    Io(std::io::Error),
+    Serialization(serde_json::Error),
+}
+
+impl Display for SettingsError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SettingsError::Io(error) => write!(f, "{error}"),
+            SettingsError::Serialization(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl Error for SettingsError {}
+
+impl From<std::io::Error> for SettingsError {
+    fn from(value: std::io::Error) -> Self {
+        SettingsError::Io(value)
+    }
+}
+
+impl From<serde_json::Error> for SettingsError {
+    fn from(value: serde_json::Error) -> Self {
+        SettingsError::Serialization(value)
+    }
+}
+
+fn settings_path() -> PathBuf {
+    if let Ok(path) = env::var("TRANSLATOR_SETTINGS_PATH") {
+        return PathBuf::from(path);
+    }
+
+    default_settings_path()
+}
+
+fn default_settings_path() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(app_data) = env::var("APPDATA") {
+            return PathBuf::from(app_data)
+                .join("translator")
+                .join("settings.json");
+        }
+    }
+
+    if let Ok(home) = env::var("HOME") {
+        return PathBuf::from(home)
+            .join(".config")
+            .join("translator")
+            .join("settings.json");
+    }
+
+    let mut fallback = env::temp_dir();
+    let mut hasher = DefaultHasher::new();
+    env::current_dir().ok().hash(&mut hasher);
+    fallback.push(format!("translator-settings-{}.json", hasher.finish()));
+    fallback
+}
+
+pub fn save_settings(settings: &AppSettings) -> Result<(), SettingsError> {
+    let path = settings_path();
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+
+    let payload = serde_json::to_vec_pretty(settings)?;
+    fs::write(path, payload)?;
+    Ok(())
+}
+
+pub fn load_settings() -> Result<Option<AppSettings>, SettingsError> {
+    let path = settings_path();
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let payload = fs::read(path)?;
+    let parsed = serde_json::from_slice(&payload)?;
+    Ok(Some(parsed))
+}
+
+pub fn delete_settings() -> Result<(), SettingsError> {
+    let path = settings_path();
+    if !path.exists() {
+        return Ok(());
+    }
+
+    fs::remove_file(path)?;
+    Ok(())
+}

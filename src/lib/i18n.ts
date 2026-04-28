@@ -1,0 +1,118 @@
+export type Locale = 'en' | 'zh';
+
+const translations = {
+  en: {
+    // Nav
+    nav_translate: 'Translate',
+    nav_settings: 'Settings',
+    // Translator panel
+    input_placeholder: 'Enter text to translate…',
+    output_placeholder: 'Translation will appear here…',
+    btn_translate: 'Translate',
+    btn_copy: 'Copy',
+    // Settings sections
+    settings_title: 'Settings',
+    section_api: 'API Configuration',
+    section_translation: 'Translation',
+    section_triggers: 'Triggers',
+    section_window: 'Window',
+    section_system: 'System',
+    // API fields
+    label_base_url: 'Base URL',
+    desc_base_url: 'OpenAI-compatible endpoint',
+    label_api_key: 'API Key',
+    desc_api_key_set: 'Key saved — enter new to replace',
+    desc_api_key_unset: 'Not set',
+    label_clear_key: 'Clear saved key',
+    desc_clear_key: 'Remove the stored API key',
+    label_model: 'Model',
+    // Translation fields
+    label_source_lang: 'Source Language',
+    label_target_lang: 'Target Language',
+    // Trigger fields
+    label_hotkey: 'Global Hotkey',
+    desc_hotkey: 'Click the field and press a key combination',
+    hotkey_recording: 'Press shortcut…',
+    hotkey_recording_hint: 'Press the shortcut now, or Esc to cancel',
+    hotkey_idle_hint: 'Click to record a new shortcut',
+    label_selection_mode: 'Selection Mode',
+    desc_selection_mode: 'How selected text triggers translation',
+    close_prompt_title: 'What should happen when you close the window?',
+    close_prompt_body: 'Choose whether the top-right close button should exit the app or minimize it to the tray.',
+    close_prompt_exit: 'Exit App',
+    close_prompt_hide: 'Minimize to Tray',
+    close_prompt_remember: 'Remember my choice',
+    close_prompt_cancel: 'Cancel',
+    close_button_label: 'Close window',
+    option_hotkey_only: 'Hotkey only',
+    option_auto_popup: 'Auto popup',
+    // Window fields
+    label_always_on_top: 'Always on Top',
+    desc_always_on_top: 'Keep window above other windows',
+    // System fields
+    label_autostart: 'Launch at Login',
+    desc_autostart: 'Start automatically when Windows boots',
+    label_ui_language: 'Interface Language',
+    // Buttons
+    btn_saving: 'Saving…',
+    btn_refresh: '↻',
+    // Errors
+    err_fetch_models: 'Failed to fetch models.',
+    err_enter_url_key: 'Enter Base URL and API Key first.',
+  },
+  zh: {
+    nav_translate: '翻译',
+    nav_settings: '设置',
+    input_placeholder: '输入要翻译的文字…',
+    output_placeholder: '翻译结果将显示在这里…',
+    btn_translate: '翻译',
+    btn_copy: '复制',
+    settings_title: '设置',
+    section_api: 'API 配置',
+    section_translation: '翻译',
+    section_triggers: '触发方式',
+    section_window: '窗口',
+    section_system: '系统',
+    label_base_url: 'Base URL',
+    desc_base_url: 'OpenAI 兼容接口地址',
+    label_api_key: 'API Key',
+    desc_api_key_set: '已保存 — 输入新密钥以替换',
+    desc_api_key_unset: '未设置',
+    label_clear_key: '清除已保存的密钥',
+    desc_clear_key: '从系统中删除存储的 API Key',
+    label_model: '模型',
+    label_source_lang: '源语言',
+    label_target_lang: '目标语言',
+    label_hotkey: '全局快捷键',
+    desc_hotkey: '点击后直接按下新的快捷键组合',
+    hotkey_recording: '请按下快捷键…',
+    hotkey_recording_hint: '现在按下快捷键，或按 Esc 取消',
+    hotkey_idle_hint: '点击以录制新的快捷键',
+    label_selection_mode: '划词模式',
+    desc_selection_mode: '选中文字后如何触发翻译',
+    close_prompt_title: '关闭窗口时要执行什么操作？',
+    close_prompt_body: '请选择右上角关闭按钮是退出应用，还是最小化到托盘。',
+    close_prompt_exit: '退出应用',
+    close_prompt_hide: '最小化到托盘',
+    close_prompt_remember: '记住我的选择',
+    close_prompt_cancel: '取消',
+    close_button_label: '关闭窗口',
+    option_hotkey_only: '仅快捷键',
+    option_auto_popup: '自动翻译',
+    label_always_on_top: '窗口置顶',
+    desc_always_on_top: '保持窗口显示在其他窗口之上',
+    label_autostart: '开机自启',
+    desc_autostart: 'Windows 启动时自动运行',
+    label_ui_language: '界面语言',
+    btn_saving: '保存中…',
+    btn_refresh: '↻',
+    err_fetch_models: '获取模型列表失败。',
+    err_enter_url_key: '请先填写 Base URL 和 API Key。',
+  },
+} as const;
+
+export type TranslationKey = keyof typeof translations.en;
+
+export function t(locale: Locale, key: TranslationKey): string {
+  return translations[locale][key] ?? translations.en[key];
+}

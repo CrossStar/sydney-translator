@@ -1,0 +1,10 @@
+F:\Workspace\translator\.worktrees\implementation\windows-helper\target\debug\deps\windows_threading-4d77e115fefbce58.d: C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\lib.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\bindings.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\pool.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\../readme.md
+
+F:\Workspace\translator\.worktrees\implementation\windows-helper\target\debug\deps\libwindows_threading-4d77e115fefbce58.rlib: C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\lib.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\bindings.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\pool.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\../readme.md
+
+F:\Workspace\translator\.worktrees\implementation\windows-helper\target\debug\deps\libwindows_threading-4d77e115fefbce58.rmeta: C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\lib.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\bindings.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\pool.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\../readme.md
+
+C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\lib.rs:
+C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\bindings.rs:
+C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\pool.rs:
+C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\../readme.md:

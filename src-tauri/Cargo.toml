@@ -1,0 +1,26 @@
+[package]
+name = "translator"
+version = "0.1.0"
+description = "Lightweight GPT-powered translation for Windows"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "translator_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-shell = "2"
+tauri-plugin-http = "2"
+tauri-plugin-autostart = "2"
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+futures-util = "0.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security_Credentials"] }

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": ["nsis", "msi"],
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png",
+      "icons/128x128.png"
+    ]
+  }
+}

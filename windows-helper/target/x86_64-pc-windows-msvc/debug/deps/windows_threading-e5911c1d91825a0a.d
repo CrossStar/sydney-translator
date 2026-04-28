@@ -1,0 +1,10 @@
+F:\Workspace\translator\.worktrees\implementation\windows-helper\target\x86_64-pc-windows-msvc\debug\deps\windows_threading-e5911c1d91825a0a.d: C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\lib.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\bindings.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\pool.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\../readme.md
+
+F:\Workspace\translator\.worktrees\implementation\windows-helper\target\x86_64-pc-windows-msvc\debug\deps\libwindows_threading-e5911c1d91825a0a.rlib: C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\lib.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\bindings.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\pool.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\../readme.md
+
+F:\Workspace\translator\.worktrees\implementation\windows-helper\target\x86_64-pc-windows-msvc\debug\deps\libwindows_threading-e5911c1d91825a0a.rmeta: C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\lib.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\bindings.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\pool.rs C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\../readme.md
+
+C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\lib.rs:
+C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\bindings.rs:
+C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\pool.rs:
+C:\Users\Sydney\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-threading-0.1.0\src\../readme.md:

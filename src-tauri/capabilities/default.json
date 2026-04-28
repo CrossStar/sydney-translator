@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default desktop capability for the translator main window.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-minimize",
+    "core:window:allow-start-dragging",
+    "shell:allow-spawn",
+    "shell:allow-kill",
+    "shell:allow-stdin-write",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        { "url": "https://*/**" },
+        { "url": "http://*/**" }
+      ]
+    },
+    "http:allow-fetch-send"
+  ]
+}
