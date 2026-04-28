@@ -68,4 +68,4 @@ jobs:
             3. 使用全局热键（默认 `Ctrl+Shift+T`）或划词触发翻译
           releaseDraft: false
           prerelease: false
-          tauriScript: npm run tauri:build
+          tauriScript: npx tauri
