@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+            windows-helper -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npx vitest run
+
+      - name: Run helper tests
+        run: cargo test --manifest-path windows-helper/Cargo.toml
+
+      - name: Build Windows helper
+        run: cargo build --release --manifest-path windows-helper/Cargo.toml --target x86_64-pc-windows-msvc
+
+      - name: Copy helper binary
+        run: |
+          copy windows-helper\target\x86_64-pc-windows-msvc\release\windows-helper.exe `
+               src-tauri\binaries\windows-helper-x86_64-pc-windows-msvc.exe
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Translator ${{ github.ref_name }}'
+          releaseBody: |
+            ## 安装说明
+
+            下载 `.msi` 文件（推荐）或 `.exe` 安装包，双击安装即可。
+
+            ## 使用方法
+
+            1. 在设置页填入 OpenAI 兼容的 API 地址和密钥
+            2. 选择模型和目标语言
+            3. 使用全局热键（默认 `Ctrl+Shift+T`）或划词触发翻译
+          releaseDraft: false
+          prerelease: false
