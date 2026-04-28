@@ -16,13 +16,18 @@ pub fn build_tray(app: &AppHandle<Wry>) -> tauri::Result<()> {
         .text(QUIT_ID, "Exit")
         .build()?;
 
-    TrayIconBuilder::with_id("main")
+    let mut builder = TrayIconBuilder::with_id("main")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("Translator")
+        .tooltip("sydney-translator")
         .on_menu_event(handle_menu_event)
-        .on_tray_icon_event(handle_tray_event)
-        .build(app)?;
+        .on_tray_icon_event(handle_tray_event);
+
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+
+    builder.build(app)?;
 
     Ok(())
 }
