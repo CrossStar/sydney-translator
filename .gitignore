@@ -3,5 +3,6 @@ node_modules/
 dist/
 src-tauri/target/
 windows-helper/target/
+src-tauri/binaries/
 .tmp/
 .claude/
