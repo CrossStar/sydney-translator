@@ -1,5 +1,3 @@
-use crate::config::DEFAULT_GLOBAL_HOTKEY;
-
 pub const MOD_ALT_MASK: u32 = 0x0001;
 pub const MOD_CONTROL_MASK: u32 = 0x0002;
 pub const MOD_SHIFT_MASK: u32 = 0x0004;
