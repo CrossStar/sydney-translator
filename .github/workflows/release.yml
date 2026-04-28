@@ -46,8 +46,9 @@ jobs:
 
       - name: Copy helper binary
         run: |
-          copy windows-helper\target\x86_64-pc-windows-msvc\release\windows-helper.exe `
-               src-tauri\binaries\windows-helper-x86_64-pc-windows-msvc.exe
+          New-Item -ItemType Directory -Force -Path src-tauri\binaries
+          Copy-Item windows-helper\target\x86_64-pc-windows-msvc\release\windows-helper.exe `
+                    src-tauri\binaries\windows-helper-x86_64-pc-windows-msvc.exe
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
