@@ -22,7 +22,7 @@ export interface SaveSettingsPayload {
 }
 
 export interface HelperEvent {
-  event: 'selection_text' | 'hotkey_trigger';
+  event: 'selection_text' | 'hotkey_trigger' | 'hotkey_error';
   text?: string;
   source?: 'selection' | 'hotkey';
 }
