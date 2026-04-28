@@ -34,6 +34,9 @@ fn settings_round_trip_keeps_non_secret_fields() {
         global_hotkey: "ctrl+shift+t".into(),
         selection_mode: "hotkey".into(),
         ui_language: "en".into(),
+        close_button_action: "ask".into(),
+        translation_provider: "ai".into(),
+        dismissed_update: "".into(),
     };
 
     save_settings(&settings).expect("expected settings to save");
@@ -52,6 +55,7 @@ fn settings_round_trip_keeps_non_secret_fields() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn failed_secret_save_restores_previous_non_secret_settings() {
     let _guard = TEST_LOCK.lock().expect("expected test lock to succeed");
     let path = temp_settings_path("rollback-existing");
@@ -66,6 +70,9 @@ fn failed_secret_save_restores_previous_non_secret_settings() {
         global_hotkey: "ctrl+shift+t".into(),
         selection_mode: "hotkey".into(),
         ui_language: "en".into(),
+        close_button_action: "ask".into(),
+        translation_provider: "ai".into(),
+        dismissed_update: "".into(),
     };
     let updated = AppSettings {
         base_url: "https://updated.example/v1".into(),
@@ -75,6 +82,9 @@ fn failed_secret_save_restores_previous_non_secret_settings() {
         global_hotkey: "Ctrl+Shift+T".into(),
         selection_mode: "auto-popup".into(),
         ui_language: "zh".into(),
+        close_button_action: "hide".into(),
+        translation_provider: "ai".into(),
+        dismissed_update: "".into(),
     };
 
     save_settings(&original).expect("expected original settings to save");

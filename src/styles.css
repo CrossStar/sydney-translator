@@ -586,6 +586,20 @@ body {
   flex-wrap: wrap;
 }
 
+/* ── Connection test ── */
+.test-btn { min-width: 52px; }
+.test-btn--ok { color: var(--success); border-color: var(--success); }
+.test-btn--fail { color: var(--danger); border-color: var(--danger); }
+
+.settings-test-result {
+  font-size: 0.78rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  margin-top: -0.25rem;
+}
+.settings-test-result--ok { color: var(--success); background: #f0fdf4; }
+.settings-test-result--fail { color: var(--danger); background: #fef2f2; }
+
 /* ── Responsive ── */
 @media (max-width: 700px) {
   .translator-layout {

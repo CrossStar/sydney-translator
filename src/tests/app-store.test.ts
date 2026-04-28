@@ -14,7 +14,9 @@ describe('createInitialState', () => {
       globalHotkey: 'ctrl+shift+t',
       selectionMode: 'hotkey',
       uiLanguage: 'en',
-      closeButtonAction: 'ask'
+      closeButtonAction: 'ask',
+      translationProvider: 'ai',
+      dismissedUpdate: ''
     });
   });
 

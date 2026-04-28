@@ -32,6 +32,8 @@ it('preserves api key presence when only the secret exists', async () => {
     globalHotkey: 'ctrl+shift+t',
     selectionMode: 'hotkey',
     uiLanguage: 'en',
-    closeButtonAction: 'ask'
+    closeButtonAction: 'ask',
+    translationProvider: 'ai',
+    dismissedUpdate: ''
   });
 });

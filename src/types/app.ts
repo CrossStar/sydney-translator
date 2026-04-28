@@ -2,6 +2,8 @@ export type TriggerSource = 'manual' | 'hotkey' | 'selection';
 export type SelectionMode = 'hotkey' | 'auto-popup';
 export type UiLanguage = 'en' | 'zh';
 export type CloseButtonAction = 'ask' | 'hide' | 'exit';
+export type TranslationProvider = 'ai' | 'bing' | 'google';
+export type UpdateDismiss = 'never' | string; // 'never' = ignore all, semver = ignore until next
 
 export interface Settings {
   baseUrl: string;
@@ -13,6 +15,8 @@ export interface Settings {
   selectionMode: SelectionMode;
   uiLanguage: UiLanguage;
   closeButtonAction: CloseButtonAction;
+  translationProvider: TranslationProvider;
+  dismissedUpdate: string; // '' = none dismissed, semver = that version dismissed
 }
 
 export interface TranslationState {

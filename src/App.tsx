@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { SettingsDialog, type SettingsDialogValues } from './components/SettingsDialog';
 import { TranslatorPanel } from './components/TranslatorPanel';
 import {
+  checkForUpdate,
   exitApplication,
   getAutostartEnabled,
   hideCurrentWindow,
@@ -11,18 +12,22 @@ import {
   listenToTranslationChunks,
   loadSettings,
   minimizeCurrentWindow,
+  openUrl,
   reloadHelper,
   saveSettingsWithApiKey,
   setAlwaysOnTop,
   setAutostartEnabled,
   startDraggingCurrentWindow,
-  translateText
+  translateText,
+  type UpdateInfo
 } from './lib/ipc';
 import { t, type Locale } from './lib/i18n';
 import { createInitialState, reduceHelperEvent, validateSettings } from './state/app-store';
 import type { CloseButtonAction, Settings } from './types/app';
 
 type Page = 'translate' | 'settings';
+
+const APP_VERSION = '0.1.0';
 
 export default function App() {
   const [page, setPage] = useState<Page>('translate');
@@ -39,6 +44,7 @@ export default function App() {
   const [autostartEnabled, setAutostartEnabledState] = useState(false);
   const [showClosePrompt, setShowClosePrompt] = useState(false);
   const [rememberCloseChoice, setRememberCloseChoice] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   const inputRef = useRef('');
   const noticeRef = useRef<string | null>(null);
@@ -70,6 +76,15 @@ export default function App() {
         const enabled = await getAutostartEnabled();
         if (!cancelled) setAutostartEnabledState(enabled);
       } catch { /* autostart not available in dev */ }
+
+      // Check for updates in the background after a short delay
+      setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          const info = await checkForUpdate(APP_VERSION, settingsRef.current.dismissedUpdate);
+          if (!cancelled && info.hasUpdate) setUpdateInfo(info);
+        } catch { /* network unavailable, silently skip */ }
+      }, 3000);
 
       unsubscribeHelper = await listenToHelperEvents((event) => {
         if (cancelled) return;
@@ -162,7 +177,9 @@ export default function App() {
       globalHotkey: values.globalHotkey,
       selectionMode: values.selectionMode,
       uiLanguage: values.uiLanguage,
-      closeButtonAction: values.closeButtonAction
+      closeButtonAction: values.closeButtonAction,
+      translationProvider: values.translationProvider,
+      dismissedUpdate: previous.dismissedUpdate,
     };
 
     await persistSettings(requested, values.clearApiKey, values.apiKey);
@@ -194,7 +211,8 @@ export default function App() {
         currentSettings.model,
         currentSettings.sourceLanguage,
         currentSettings.targetLanguage,
-        textToTranslate
+        textToTranslate,
+        currentSettings.translationProvider
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to translate the current text.');
@@ -217,11 +235,7 @@ export default function App() {
 
   async function applyCloseAction(action: CloseButtonAction, remember: boolean) {
     if (remember) {
-      const requested: Settings = {
-        ...settingsRef.current,
-        closeButtonAction: action
-      };
-      await persistSettings(requested);
+      await persistSettings({ ...settingsRef.current, closeButtonAction: action });
     }
 
     setShowClosePrompt(false);
@@ -237,25 +251,29 @@ export default function App() {
 
   async function handleCloseWindow() {
     const action = settingsRef.current.closeButtonAction;
-    if (action === 'hide') {
-      await hideCurrentWindow();
-      return;
-    }
-    if (action === 'exit') {
-      await exitApplication();
-      return;
-    }
+    if (action === 'hide') { await hideCurrentWindow(); return; }
+    if (action === 'exit') { await exitApplication(); return; }
     setRememberCloseChoice(false);
     setShowClosePrompt(true);
+  }
+
+  async function handleUpdateNow() {
+    if (!updateInfo) return;
+    await openUrl(updateInfo.releaseUrl);
+    setUpdateInfo(null);
+  }
+
+  async function handleUpdateSkip() {
+    if (!updateInfo) return;
+    await persistSettings({ ...settingsRef.current, dismissedUpdate: updateInfo.latestVersion });
+    setUpdateInfo(null);
   }
 
   return (
     <>
       <nav
         className="nav"
-        onDoubleClick={() => {
-          void startDraggingCurrentWindow();
-        }}
+        onDoubleClick={() => { void startDraggingCurrentWindow(); }}
       >
         <div className="nav-drag-zone" onMouseDown={() => { void startDraggingCurrentWindow(); }}>
           <span className="nav-brand">Translator</span>
@@ -346,6 +364,28 @@ export default function App() {
               </button>
               <button className="btn btn-primary" type="button" onClick={() => { void applyCloseAction('exit', rememberCloseChoice); }}>
                 {t(locale, 'close_prompt_exit')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {updateInfo?.hasUpdate && (
+        <div className="modal-backdrop" role="presentation">
+          <div aria-modal="true" className="modal-card" role="dialog">
+            <h2 className="modal-title">{t(locale, 'update_title')}</h2>
+            <p className="modal-body">
+              {t(locale, 'update_body')} <strong>v{updateInfo.latestVersion}</strong>
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setUpdateInfo(null)}>
+                {t(locale, 'update_remind_later')}
+              </button>
+              <button className="btn btn-ghost" type="button" onClick={() => { void handleUpdateSkip(); }}>
+                {t(locale, 'update_skip_once')}
+              </button>
+              <button className="btn btn-primary" type="button" onClick={() => { void handleUpdateNow(); }}>
+                {t(locale, 'update_now')}
               </button>
             </div>
           </div>

@@ -148,7 +148,9 @@ it('auto-translates selection text when valid settings are loaded', async () => 
     globalHotkey: 'ctrl+shift+t',
     selectionMode: 'auto-popup',
     uiLanguage: 'en',
-    closeButtonAction: 'ask'
+    closeButtonAction: 'ask',
+    translationProvider: 'ai',
+    dismissedUpdate: ''
   });
 
   render(<App />);
@@ -168,7 +170,8 @@ it('auto-translates selection text when valid settings are loaded', async () => 
       'gpt-5-mini',
       'auto',
       'Chinese',
-      'selected text'
+      'selected text',
+      'ai'
     );
   });
 });
@@ -207,7 +210,9 @@ it('renders streamed output after translating with valid settings', async () => 
     globalHotkey: 'ctrl+shift+t',
     selectionMode: 'hotkey',
     uiLanguage: 'en',
-    closeButtonAction: 'ask'
+    closeButtonAction: 'ask',
+    translationProvider: 'ai',
+    dismissedUpdate: ''
   });
   mockedTranslateText.mockImplementationOnce(async () => {
     pushTranslationChunk('bon');
@@ -232,7 +237,8 @@ it('renders streamed output after translating with valid settings', async () => 
       'gpt-5-mini',
       'auto',
       'Chinese',
-      'hello'
+      'hello',
+      'ai'
     );
   });
 
@@ -285,7 +291,9 @@ it('auto-saves settings when the user edits fields', async () => {
         globalHotkey: 'ctrl+shift+t',
         selectionMode: 'hotkey',
         uiLanguage: 'en',
-        closeButtonAction: 'ask'
+        closeButtonAction: 'ask',
+        translationProvider: 'ai',
+        dismissedUpdate: ''
       },
       apiKey: '',
       clearApiKey: false
@@ -365,7 +373,9 @@ it('skips close prompt when action is already hide', async () => {
     globalHotkey: 'ctrl+shift+t',
     selectionMode: 'hotkey',
     uiLanguage: 'en',
-    closeButtonAction: 'hide'
+    closeButtonAction: 'hide',
+    translationProvider: 'ai',
+    dismissedUpdate: ''
   });
 
   render(<App />);
@@ -389,7 +399,9 @@ it('skips close prompt and exits when action is already exit', async () => {
     globalHotkey: 'ctrl+shift+t',
     selectionMode: 'hotkey',
     uiLanguage: 'en',
-    closeButtonAction: 'exit'
+    closeButtonAction: 'exit',
+    translationProvider: 'ai',
+    dismissedUpdate: ''
   });
 
   render(<App />);

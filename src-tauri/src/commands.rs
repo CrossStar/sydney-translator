@@ -14,6 +14,31 @@ fn resolve_api_key(api_key: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn test_connection(base_url: String, api_key: String) -> Result<u64, String> {
+    let key = resolve_api_key(api_key)?;
+    let base = base_url.trim_end_matches('/');
+    let url = if base.ends_with("/v1") {
+        format!("{base}/models")
+    } else {
+        format!("{base}/v1/models")
+    };
+    let client = reqwest::Client::new();
+    let start = std::time::Instant::now();
+    let resp = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {key}"))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let elapsed = start.elapsed().as_millis() as u64;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    Ok(elapsed)
+}
+
+#[tauri::command]
 pub async fn fetch_models(base_url: String, api_key: String) -> Result<Vec<String>, String> {
     let key = resolve_api_key(api_key)?;
     let base = base_url.trim_end_matches('/');
@@ -42,6 +67,89 @@ pub async fn fetch_models(base_url: String, api_key: String) -> Result<Vec<Strin
     Ok(ids)
 }
 
+async fn translate_bing(
+    app: &tauri::AppHandle,
+    source_language: &str,
+    target_language: &str,
+    text: &str,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    let from = if source_language == "auto" { "" } else { source_language };
+    let url = format!(
+        "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to={target_language}&from={from}"
+    );
+    #[derive(Serialize)]
+    struct BingBody { #[serde(rename = "Text")] text: String }
+    #[derive(Deserialize)]
+    struct BingTranslation { text: String }
+    #[derive(Deserialize)]
+    struct BingResult { translations: Vec<BingTranslation> }
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&[BingBody { text: text.to_string() }])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("Bing HTTP {status}: {}", &body[..body.len().min(200)]));
+    }
+
+    let results: Vec<BingResult> = resp.json().await.map_err(|e| e.to_string())?;
+    let translated = results
+        .into_iter()
+        .next()
+        .and_then(|r| r.translations.into_iter().next())
+        .map(|t| t.text)
+        .unwrap_or_default();
+
+    let _ = app.emit("translation-chunk", translated);
+    Ok(())
+}
+
+async fn translate_google(
+    app: &tauri::AppHandle,
+    source_language: &str,
+    target_language: &str,
+    text: &str,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    let sl = if source_language == "auto" { "auto" } else { source_language };
+    let url = format!(
+        "https://translate.googleapis.com/translate_a/single?client=gtx&sl={sl}&tl={target_language}&dt=t&q={q}",
+        q = urlencoding::encode(text)
+    );
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&url)
+        .header("User-Agent", "Mozilla/5.0")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Google HTTP {}", resp.status()));
+    }
+
+    let raw: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let mut result = String::new();
+    if let Some(outer) = raw.get(0).and_then(|v| v.as_array()) {
+        for segment in outer {
+            if let Some(s) = segment.get(0).and_then(|v| v.as_str()) {
+                result.push_str(s);
+            }
+        }
+    }
+
+    let _ = app.emit("translation-chunk", result);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn translate(
     app: tauri::AppHandle,
@@ -51,7 +159,14 @@ pub async fn translate(
     source_language: String,
     target_language: String,
     text: String,
+    provider: String,
 ) -> Result<(), String> {
+    match provider.as_str() {
+        "bing" => return translate_bing(&app, &source_language, &target_language, &text).await,
+        "google" => return translate_google(&app, &source_language, &target_language, &text).await,
+        _ => {}
+    }
+
     use futures_util::StreamExt;
     use tauri::Emitter;
 
@@ -130,6 +245,52 @@ pub async fn translate(
     Ok(())
 }
 
+#[derive(Serialize)]
+pub struct CheckUpdateResult {
+    pub latest_version: String,
+    pub release_url: String,
+    pub has_update: bool,
+}
+
+#[tauri::command]
+pub async fn check_for_update(current_version: String, dismissed_version: String) -> Result<CheckUpdateResult, String> {
+    #[derive(Deserialize)]
+    struct Release { tag_name: String, html_url: String }
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .get("https://api.github.com/repos/CrossStar/sydney-translator/releases/latest")
+        .header("User-Agent", "sydney-translator")
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+
+    let release: Release = resp.json().await.map_err(|e| e.to_string())?;
+    let latest = release.tag_name.trim_start_matches('v').to_string();
+    let current = current_version.trim_start_matches('v').to_string();
+    let dismissed = dismissed_version.trim_start_matches('v').to_string();
+
+    let has_update = latest != current && latest != dismissed && semver_gt(&latest, &current);
+
+    Ok(CheckUpdateResult {
+        latest_version: latest,
+        release_url: release.html_url,
+        has_update,
+    })
+}
+
+fn semver_gt(a: &str, b: &str) -> bool {
+    let parse = |s: &str| -> (u64, u64, u64) {
+        let mut parts = s.splitn(3, '.').map(|p| p.parse::<u64>().unwrap_or(0));
+        (parts.next().unwrap_or(0), parts.next().unwrap_or(0), parts.next().unwrap_or(0))
+    };
+    parse(a) > parse(b)
+}
 
 #[derive(Serialize)]
 pub struct LoadSettingsResponse {
@@ -256,7 +417,6 @@ pub fn exit_application(app: tauri::AppHandle) {
     app.exit(0);
 }
 
-
 #[tauri::command]
 pub fn get_autostart_enabled(app: tauri::AppHandle) -> Result<bool, String> {
     app.autolaunch().is_enabled().map_err(|e| e.to_string())
@@ -288,6 +448,8 @@ mod tests {
             selection_mode: "hotkey".into(),
             ui_language: "en".into(),
             close_button_action: "ask".into(),
+            translation_provider: "ai".into(),
+            dismissed_update: "".into(),
         }
     }
 
@@ -317,5 +479,13 @@ mod tests {
 
         assert_eq!(result, Err(String::from("secret save failed")));
         assert_eq!(*stored_settings.borrow(), Some(original));
+    }
+
+    #[test]
+    fn semver_gt_works() {
+        assert!(super::semver_gt("0.2.0", "0.1.0"));
+        assert!(super::semver_gt("1.0.0", "0.9.9"));
+        assert!(!super::semver_gt("0.1.0", "0.1.0"));
+        assert!(!super::semver_gt("0.0.9", "0.1.0"));
     }
 }

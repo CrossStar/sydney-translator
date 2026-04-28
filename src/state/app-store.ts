@@ -16,6 +16,8 @@ export function createInitialState(): {
       selectionMode: 'hotkey',
       uiLanguage: 'en',
       closeButtonAction: 'ask',
+      translationProvider: 'ai',
+      dismissedUpdate: '',
     },
     translation: {
       input: '',
@@ -34,16 +36,16 @@ export function validateSettings(
 ): string[] {
   const errors: string[] = [];
 
-  if (!settings.baseUrl.trim()) {
-    errors.push('Base URL is required.');
-  }
-
-  if (!apiKeyPresent) {
-    errors.push('API Key is required.');
-  }
-
-  if (!settings.model.trim()) {
-    errors.push('Model is required.');
+  if (settings.translationProvider === 'ai') {
+    if (!settings.baseUrl.trim()) {
+      errors.push('Base URL is required.');
+    }
+    if (!apiKeyPresent) {
+      errors.push('API Key is required.');
+    }
+    if (!settings.model.trim()) {
+      errors.push('Model is required.');
+    }
   }
 
   return errors;

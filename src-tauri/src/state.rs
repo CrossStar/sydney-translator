@@ -19,6 +19,10 @@ pub struct AppSettings {
     pub ui_language: String,
     #[serde(default = "default_close_button_action")]
     pub close_button_action: String,
+    #[serde(default = "default_translation_provider")]
+    pub translation_provider: String,
+    #[serde(default)]
+    pub dismissed_update: String,
 }
 
 fn default_close_button_action() -> String {
@@ -27,6 +31,10 @@ fn default_close_button_action() -> String {
 
 fn default_ui_language() -> String {
     "en".to_string()
+}
+
+fn default_translation_provider() -> String {
+    "ai".to_string()
 }
 
 #[derive(Debug)]

@@ -1,5 +1,5 @@
 import { createInitialState } from '../state/app-store';
-import type { CloseButtonAction, Settings } from '../types/app';
+import type { CloseButtonAction, Settings, TranslationProvider } from '../types/app';
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -27,6 +27,12 @@ export interface HelperEvent {
   source?: 'selection' | 'hotkey';
 }
 
+export interface UpdateInfo {
+  latestVersion: string;
+  releaseUrl: string;
+  hasUpdate: boolean;
+}
+
 interface PersistedSettings {
   base_url: string;
   model: string;
@@ -36,6 +42,8 @@ interface PersistedSettings {
   selection_mode: string;
   ui_language: string;
   close_button_action?: CloseButtonAction;
+  translation_provider?: TranslationProvider;
+  dismissed_update?: string;
 }
 
 function fromPersistedSettings(settings: PersistedSettings, apiKeyPresent: boolean): Settings {
@@ -49,6 +57,8 @@ function fromPersistedSettings(settings: PersistedSettings, apiKeyPresent: boole
     selectionMode: settings.selection_mode as Settings['selectionMode'],
     uiLanguage: (settings.ui_language as Settings['uiLanguage']) ?? 'en',
     closeButtonAction: settings.close_button_action ?? 'ask',
+    translationProvider: settings.translation_provider ?? 'ai',
+    dismissedUpdate: settings.dismissed_update ?? '',
   };
 }
 
@@ -62,6 +72,8 @@ function toPersistedSettings(settings: Settings): PersistedSettings {
     selection_mode: settings.selectionMode,
     ui_language: settings.uiLanguage,
     close_button_action: settings.closeButtonAction,
+    translation_provider: settings.translationProvider,
+    dismissed_update: settings.dismissedUpdate,
   };
 }
 
@@ -108,16 +120,34 @@ export async function fetchModels(baseUrl: string, apiKey: string): Promise<stri
   return invoke<string[]>('fetch_models', { baseUrl, apiKey });
 }
 
+export async function testConnection(baseUrl: string, apiKey: string): Promise<number> {
+  if (!isTauri()) throw new Error('Not running in Tauri.');
+  return invoke<number>('test_connection', { baseUrl, apiKey });
+}
+
 export async function translateText(
   baseUrl: string,
   apiKey: string,
   model: string,
   sourceLanguage: string,
   targetLanguage: string,
-  text: string
+  text: string,
+  provider: TranslationProvider = 'ai'
 ): Promise<void> {
   if (!isTauri()) throw new Error('Not running in Tauri.');
-  return invoke<void>('translate', { baseUrl, apiKey, model, sourceLanguage, targetLanguage, text });
+  return invoke<void>('translate', { baseUrl, apiKey, model, sourceLanguage, targetLanguage, text, provider });
+}
+
+export async function checkForUpdate(currentVersion: string, dismissedVersion: string): Promise<UpdateInfo> {
+  if (!isTauri()) return { latestVersion: '', releaseUrl: '', hasUpdate: false };
+  const result = await invoke<{ latest_version: string; release_url: string; has_update: boolean }>(
+    'check_for_update', { currentVersion, dismissedVersion }
+  );
+  return {
+    latestVersion: result.latest_version,
+    releaseUrl: result.release_url,
+    hasUpdate: result.has_update,
+  };
 }
 
 export async function listenToTranslationChunks(
@@ -180,4 +210,8 @@ export async function listenToHelperEvents(
 ): Promise<() => void> {
   if (!isTauri()) return () => {};
   return listen<HelperEvent>('helper-event', (payload) => handler(payload));
+}
+
+export async function openUrl(url: string): Promise<void> {
+  window.open(url, '_blank');
 }

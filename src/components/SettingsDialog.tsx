@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { fetchModels as fetchModelsIpc } from '../lib/ipc';
+import { fetchModels as fetchModelsIpc, testConnection as testConnectionIpc } from '../lib/ipc';
 import { formatHotkeyForDisplay, hotkeyFromKeyboardEvent } from '../lib/hotkey';
 import { t, type Locale } from '../lib/i18n';
-import type { CloseButtonAction, SelectionMode, Settings, UiLanguage } from '../types/app';
+import type { CloseButtonAction, SelectionMode, Settings, TranslationProvider, UiLanguage } from '../types/app';
 
 export interface SettingsDialogValues {
   baseUrl: string;
@@ -15,6 +15,7 @@ export interface SettingsDialogValues {
   selectionMode: SelectionMode;
   uiLanguage: UiLanguage;
   closeButtonAction: CloseButtonAction;
+  translationProvider: TranslationProvider;
 }
 
 interface SettingsPageProps {
@@ -72,7 +73,8 @@ function buildInitialValues(settings: Settings): SettingsDialogValues {
     globalHotkey: settings.globalHotkey,
     selectionMode: settings.selectionMode,
     uiLanguage: settings.uiLanguage ?? 'en',
-    closeButtonAction: settings.closeButtonAction
+    closeButtonAction: settings.closeButtonAction,
+    translationProvider: settings.translationProvider ?? 'ai',
   };
 }
 
@@ -103,6 +105,8 @@ export function SettingsDialog({
   const [isRecordingHotkey, setIsRecordingHotkey] = useState(false);
   const [modelsFetching, setModelsFetching] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
+  const [testMessage, setTestMessage] = useState('');
   const fetchRef = useRef(0);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hydratedRef = useRef(false);
@@ -143,6 +147,26 @@ export function SettingsDialog({
 
   function set<K extends keyof SettingsDialogValues>(key: K, value: SettingsDialogValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleTestConnection() {
+    const { baseUrl, apiKey } = values;
+    const hasKey = apiKey.trim() || initialSettings.apiKeyPresent;
+    if (!baseUrl.trim() || !hasKey) {
+      setTestStatus('fail');
+      setTestMessage(t(locale, 'err_enter_url_key'));
+      return;
+    }
+    setTestStatus('testing');
+    setTestMessage('');
+    try {
+      const ms = await testConnectionIpc(baseUrl, apiKey.trim());
+      setTestStatus('ok');
+      setTestMessage(`${t(locale, 'test_connection_ok')} (${ms}ms)`);
+    } catch (err) {
+      setTestStatus('fail');
+      setTestMessage(`${t(locale, 'test_connection_fail')}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   async function handleFetchModels() {
@@ -193,62 +217,24 @@ export function SettingsDialog({
     setIsRecordingHotkey(false);
   }
 
+  const isAiProvider = values.translationProvider === 'ai';
+
   return (
     <div className="page settings-page">
       <h1>{t(locale, 'settings_title')}</h1>
       <div>
         <div className="settings-section">
-          <div className="settings-section-title">{t(locale, 'section_api')}</div>
-          <div className="settings-row">
-            <div className="settings-row-left">
-              <span className="settings-row-label">{t(locale, 'label_base_url')}</span>
-              <span className="settings-row-desc">{t(locale, 'desc_base_url')}</span>
-            </div>
-            <input className="settings-input" placeholder="https://api.openai.com/v1" type="text" value={values.baseUrl} onChange={(e) => set('baseUrl', e.target.value)} />
-          </div>
-          <div className="settings-row">
-            <div className="settings-row-left">
-              <span className="settings-row-label">{t(locale, 'label_api_key')}</span>
-              <span className="settings-row-desc">{initialSettings.apiKeyPresent ? t(locale, 'desc_api_key_set') : t(locale, 'desc_api_key_unset')}</span>
-            </div>
-            <input
-              className="settings-input"
-              placeholder={initialSettings.apiKeyPresent ? '••••••••' : 'sk-…'}
-              type="password"
-              value={values.apiKey}
-              onChange={(e) => setValues((prev) => ({ ...prev, apiKey: e.target.value, clearApiKey: e.target.value.trim() ? false : prev.clearApiKey }))}
-            />
-          </div>
-          {initialSettings.apiKeyPresent && (
-            <div className="settings-row">
-              <div className="settings-row-left">
-                <span className="settings-row-label">{t(locale, 'label_clear_key')}</span>
-                <span className="settings-row-desc">{t(locale, 'desc_clear_key')}</span>
-              </div>
-              <Toggle checked={values.clearApiKey} onChange={(v) => setValues((prev) => ({ ...prev, clearApiKey: v, apiKey: v ? '' : prev.apiKey }))} />
-            </div>
-          )}
-          <div className="settings-row">
-            <div className="settings-row-left">
-              <span className="settings-row-label">{t(locale, 'label_model')}</span>
-              {modelsError && <span className="settings-row-desc" style={{ color: 'var(--danger)' }}>{modelsError}</span>}
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <select className="settings-select" value={values.model} onChange={(e) => set('model', e.target.value)}>
-                {[...new Set([...MODELS.map((m) => m.value), ...fetchedModels])].map((id) => {
-                  const label = MODELS.find((m) => m.value === id)?.label ?? id;
-                  return <option key={id} value={id}>{label}</option>;
-                })}
-              </select>
-              <button className="btn btn-ghost" disabled={modelsFetching} type="button" onClick={handleFetchModels}>
-                {modelsFetching ? '…' : t(locale, 'btn_refresh')}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="settings-section">
           <div className="settings-section-title">{t(locale, 'section_translation')}</div>
+          <div className="settings-row">
+            <div className="settings-row-left">
+              <span className="settings-row-label">{t(locale, 'label_provider')}</span>
+            </div>
+            <select className="settings-select" value={values.translationProvider} onChange={(e) => set('translationProvider', e.target.value as TranslationProvider)}>
+              <option value="ai">{t(locale, 'option_provider_ai')}</option>
+              <option value="bing">{t(locale, 'option_provider_bing')}</option>
+              <option value="google">{t(locale, 'option_provider_google')}</option>
+            </select>
+          </div>
           <div className="settings-row">
             <div className="settings-row-left">
               <span className="settings-row-label">{t(locale, 'label_source_lang')}</span>
@@ -266,6 +252,73 @@ export function SettingsDialog({
             </select>
           </div>
         </div>
+
+        {isAiProvider && (
+          <div className="settings-section">
+            <div className="settings-section-title">{t(locale, 'section_api')}</div>
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <span className="settings-row-label">{t(locale, 'label_base_url')}</span>
+                <span className="settings-row-desc">{t(locale, 'desc_base_url')}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input className="settings-input" placeholder="https://api.openai.com/v1" type="text" value={values.baseUrl} onChange={(e) => { set('baseUrl', e.target.value); setTestStatus('idle'); }} />
+                <button
+                  className={`btn btn-ghost test-btn test-btn--${testStatus}`}
+                  disabled={testStatus === 'testing'}
+                  type="button"
+                  onClick={handleTestConnection}
+                >
+                  {testStatus === 'testing' ? '…' : t(locale, 'btn_test_connection')}
+                </button>
+              </div>
+            </div>
+            {testMessage && (
+              <div className={`settings-test-result settings-test-result--${testStatus}`}>
+                {testMessage}
+              </div>
+            )}
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <span className="settings-row-label">{t(locale, 'label_api_key')}</span>
+                <span className="settings-row-desc">{initialSettings.apiKeyPresent ? t(locale, 'desc_api_key_set') : t(locale, 'desc_api_key_unset')}</span>
+              </div>
+              <input
+                className="settings-input"
+                placeholder={initialSettings.apiKeyPresent ? '••••••••' : 'sk-…'}
+                type="password"
+                value={values.apiKey}
+                onChange={(e) => setValues((prev) => ({ ...prev, apiKey: e.target.value, clearApiKey: e.target.value.trim() ? false : prev.clearApiKey }))}
+              />
+            </div>
+            {initialSettings.apiKeyPresent && (
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-row-label">{t(locale, 'label_clear_key')}</span>
+                  <span className="settings-row-desc">{t(locale, 'desc_clear_key')}</span>
+                </div>
+                <Toggle checked={values.clearApiKey} onChange={(v) => setValues((prev) => ({ ...prev, clearApiKey: v, apiKey: v ? '' : prev.apiKey }))} />
+              </div>
+            )}
+            <div className="settings-row">
+              <div className="settings-row-left">
+                <span className="settings-row-label">{t(locale, 'label_model')}</span>
+                {modelsError && <span className="settings-row-desc" style={{ color: 'var(--danger)' }}>{modelsError}</span>}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <select className="settings-select" value={values.model} onChange={(e) => set('model', e.target.value)}>
+                  {[...new Set([...MODELS.map((m) => m.value), ...fetchedModels])].map((id) => {
+                    const label = MODELS.find((m) => m.value === id)?.label ?? id;
+                    return <option key={id} value={id}>{label}</option>;
+                  })}
+                </select>
+                <button className="btn btn-ghost" disabled={modelsFetching} type="button" onClick={handleFetchModels}>
+                  {modelsFetching ? '…' : t(locale, 'btn_refresh')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="settings-section">
           <div className="settings-section-title">{t(locale, 'section_triggers')}</div>

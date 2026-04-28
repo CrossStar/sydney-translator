@@ -26,9 +26,16 @@ const translations = {
     label_clear_key: 'Clear saved key',
     desc_clear_key: 'Remove the stored API key',
     label_model: 'Model',
+    btn_test_connection: 'Test',
+    test_connection_ok: 'Connected',
+    test_connection_fail: 'Failed',
     // Translation fields
     label_source_lang: 'Source Language',
     label_target_lang: 'Target Language',
+    label_provider: 'Translation Provider',
+    option_provider_ai: 'AI Translation',
+    option_provider_bing: 'Bing Translate',
+    option_provider_google: 'Google Translate',
     // Trigger fields
     label_hotkey: 'Global Hotkey',
     desc_hotkey: 'Click the field and press a key combination',
@@ -59,6 +66,12 @@ const translations = {
     // Errors
     err_fetch_models: 'Failed to fetch models.',
     err_enter_url_key: 'Enter Base URL and API Key first.',
+    // Update prompt
+    update_title: 'New version available',
+    update_body: 'A new version is available. Would you like to update now?',
+    update_now: 'Update Now',
+    update_skip_once: 'Skip This Version',
+    update_remind_later: 'Remind Me Later',
   },
   zh: {
     nav_translate: '翻译',
@@ -81,8 +94,15 @@ const translations = {
     label_clear_key: '清除已保存的密钥',
     desc_clear_key: '从系统中删除存储的 API Key',
     label_model: '模型',
+    btn_test_connection: '测试',
+    test_connection_ok: '连接成功',
+    test_connection_fail: '连接失败',
     label_source_lang: '源语言',
     label_target_lang: '目标语言',
+    label_provider: '翻译方式',
+    option_provider_ai: 'AI 翻译',
+    option_provider_bing: 'Bing 翻译',
+    option_provider_google: 'Google 翻译',
     label_hotkey: '全局快捷键',
     desc_hotkey: '点击后直接按下新的快捷键组合',
     hotkey_recording: '请按下快捷键…',
@@ -108,6 +128,11 @@ const translations = {
     btn_refresh: '↻',
     err_fetch_models: '获取模型列表失败。',
     err_enter_url_key: '请先填写 Base URL 和 API Key。',
+    update_title: '发现新版本',
+    update_body: '有新版本可用，是否立即更新？',
+    update_now: '立即更新',
+    update_skip_once: '跳过此版本',
+    update_remind_later: '稍后提醒',
   },
 } as const;
 
