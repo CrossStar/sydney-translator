@@ -8,7 +8,6 @@ fn main() -> anyhow::Result<()> {
     let hotkey_thread = std::thread::spawn(move || {
         if let Err(err) = windows_helper::hotkey::start_hotkey_loop(&hotkey) {
             eprintln!("[helper] hotkey loop stopped: {err}");
-            // Emit error event so the frontend can show a warning
             let event = windows_helper::events::HelperEvent::hotkey_error(err.to_string());
             let _ = windows_helper::stdout_ipc::emit(&event);
         }

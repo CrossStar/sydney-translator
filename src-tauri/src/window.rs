@@ -5,7 +5,7 @@ pub fn show_centered(app: &tauri::AppHandle) -> Result<(), String> {
         .get_webview_window("main")
         .ok_or_else(|| String::from("Main window is not available."))?;
 
-    let _was_visible = window.is_visible().map_err(|err| err.to_string())?;
+    let was_visible = window.is_visible().map_err(|err| err.to_string())?;
 
     window.show().map_err(|err| err.to_string())?;
     window.set_focus().map_err(|err| err.to_string())?;
