@@ -1,3 +1,5 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 fn main() -> anyhow::Result<()> {
     let config = windows_helper::config::HelperConfig::from_env();
     let hotkey = config.global_hotkey.clone();

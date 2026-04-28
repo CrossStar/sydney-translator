@@ -3,6 +3,10 @@ name = "windows-helper"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "windows-helper"
+path = "src/main.rs"
+
 [lib]
 name = "windows_helper"
 path = "src/lib.rs"
