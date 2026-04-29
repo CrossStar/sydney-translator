@@ -525,7 +525,7 @@ it('records a hotkey when a key combination is pressed in the hotkey field', asy
 it('starts dragging when the title bar drag zone is pressed', async () => {
   render(<App />);
 
-  fireEvent.mouseDown(screen.getByText('Translator'));
+  fireEvent.mouseDown(screen.getByText("Sydney's Translator"));
 
   await waitFor(() => {
     expect(mockedStartDraggingCurrentWindow).toHaveBeenCalledTimes(1);
