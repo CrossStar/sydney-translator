@@ -296,7 +296,7 @@ export default function App() {
         onDoubleClick={() => { void startDraggingCurrentWindow(); }}
       >
         <div className="nav-drag-zone" onMouseDown={() => { void startDraggingCurrentWindow(); }}>
-          <span className="nav-brand">Translator</span>
+          <span className="nav-brand">Sydney's Translator</span>
         </div>
         <div className="nav-tabs">
           <button
