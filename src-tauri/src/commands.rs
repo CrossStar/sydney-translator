@@ -536,6 +536,7 @@ mod tests {
             translation_provider: "ai".into(),
             theme_preset: "light".into(),
             custom_css: "".into(),
+            auto_detect_zh_en_direction: false,
             dismissed_update: "".into(),
             proxy_url: "".into(),
         }

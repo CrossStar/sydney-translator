@@ -33,6 +33,8 @@ const translations = {
     // Translation fields
     label_source_lang: 'Source Language',
     label_target_lang: 'Target Language',
+    label_auto_detect_zh_en_direction: 'Auto-switch Chinese/English direction',
+    desc_auto_detect_zh_en_direction: 'Detect whether the input is Chinese or English and translate to the other one',
     label_provider: 'Translation Provider',
     option_provider_ai: 'AI Translation',
     option_provider_bing: 'Bing Translate',
@@ -112,6 +114,8 @@ const translations = {
     test_connection_fail: '连接失败',
     label_source_lang: '源语言',
     label_target_lang: '目标语言',
+    label_auto_detect_zh_en_direction: '自动切换中英文翻译方向',
+    desc_auto_detect_zh_en_direction: '根据输入内容识别中文或英文，并自动翻译到另一种语言',
     label_provider: '翻译方式',
     option_provider_ai: 'AI 翻译',
     option_provider_bing: 'Bing 翻译',

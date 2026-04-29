@@ -1,6 +1,31 @@
 import type { HelperEvent } from '../lib/ipc';
 import type { Settings, TranslationState } from '../types/app';
 
+export function resolveEffectiveLanguages(settings: Settings, text: string): Pick<Settings, 'sourceLanguage' | 'targetLanguage'> {
+  if (!settings.autoDetectZhEnDirection) {
+    return {
+      sourceLanguage: settings.sourceLanguage,
+      targetLanguage: settings.targetLanguage,
+    };
+  }
+
+  const hasChinese = /[㐀-䶿一-鿿豈-﫿]/.test(text);
+  const hasEnglish = /[A-Za-z]/.test(text);
+
+  if (hasChinese && !hasEnglish) {
+    return { sourceLanguage: 'Chinese', targetLanguage: 'English' };
+  }
+
+  if (hasEnglish && !hasChinese) {
+    return { sourceLanguage: 'English', targetLanguage: 'Chinese' };
+  }
+
+  return {
+    sourceLanguage: settings.sourceLanguage,
+    targetLanguage: settings.targetLanguage,
+  };
+}
+
 export function createInitialState(): {
   settings: Settings;
   translation: TranslationState;
@@ -19,6 +44,7 @@ export function createInitialState(): {
       translationProvider: 'ai',
       themePreset: 'light',
       customCss: '',
+      autoDetectZhEnDirection: false,
       dismissedUpdate: '',
       proxyUrl: '',
     },

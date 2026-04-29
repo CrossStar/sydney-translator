@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createInitialState, reduceHelperEvent, validateSettings } from '../state/app-store';
+import { createInitialState, reduceHelperEvent, resolveEffectiveLanguages, validateSettings } from '../state/app-store';
 
 describe('createInitialState', () => {
   it('returns expected settings defaults', () => {
@@ -18,6 +18,7 @@ describe('createInitialState', () => {
       translationProvider: 'ai',
       themePreset: 'light',
       customCss: '',
+      autoDetectZhEnDirection: false,
       dismissedUpdate: '',
       proxyUrl: ''
     });
@@ -54,6 +55,40 @@ describe('reduceHelperEvent', () => {
     expect(next.input).toBe('selected text');
     expect(next.lastTrigger).toBe('selection');
     expect(next.notice).toBeNull();
+  });
+});
+
+describe('resolveEffectiveLanguages', () => {
+  it('returns Chinese to English when the toggle is enabled and input is Chinese', () => {
+    const { settings } = createInitialState();
+    settings.autoDetectZhEnDirection = true;
+
+    expect(resolveEffectiveLanguages(settings, '你好，世界')).toEqual({
+      sourceLanguage: 'Chinese',
+      targetLanguage: 'English'
+    });
+  });
+
+  it('returns English to Chinese when the toggle is enabled and input is English', () => {
+    const { settings } = createInitialState();
+    settings.autoDetectZhEnDirection = true;
+
+    expect(resolveEffectiveLanguages(settings, 'hello world')).toEqual({
+      sourceLanguage: 'English',
+      targetLanguage: 'Chinese'
+    });
+  });
+
+  it('falls back to configured languages when detection is ambiguous', () => {
+    const { settings } = createInitialState();
+    settings.autoDetectZhEnDirection = true;
+    settings.sourceLanguage = 'Japanese';
+    settings.targetLanguage = 'Korean';
+
+    expect(resolveEffectiveLanguages(settings, '12345 ***')).toEqual({
+      sourceLanguage: 'Japanese',
+      targetLanguage: 'Korean'
+    });
   });
 });
 

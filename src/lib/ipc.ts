@@ -45,6 +45,7 @@ interface PersistedSettings {
   translation_provider?: TranslationProvider;
   theme_preset?: ThemePreset;
   custom_css?: string;
+  auto_detect_zh_en_direction?: boolean;
   dismissed_update?: string;
   proxy_url?: string;
 }
@@ -77,6 +78,7 @@ function fromPersistedSettings(settings: PersistedSettings, apiKeyPresent: boole
     translationProvider: settings.translation_provider ?? 'ai',
     themePreset: normalizeThemePreset(settings.theme_preset),
     customCss: settings.custom_css ?? '',
+    autoDetectZhEnDirection: settings.auto_detect_zh_en_direction ?? false,
     dismissedUpdate: settings.dismissed_update ?? '',
     proxyUrl: settings.proxy_url ?? '',
   };
@@ -95,6 +97,7 @@ function toPersistedSettings(settings: Settings): PersistedSettings {
     translation_provider: settings.translationProvider,
     theme_preset: settings.themePreset,
     custom_css: settings.customCss,
+    auto_detect_zh_en_direction: settings.autoDetectZhEnDirection,
     dismissed_update: settings.dismissedUpdate,
     proxy_url: settings.proxyUrl,
   };

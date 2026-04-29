@@ -19,6 +19,7 @@ export interface Settings {
   translationProvider: TranslationProvider;
   themePreset: ThemePreset;
   customCss: string;
+  autoDetectZhEnDirection: boolean;
   dismissedUpdate: string; // '' = none dismissed, semver = that version dismissed
   proxyUrl: string;
 }

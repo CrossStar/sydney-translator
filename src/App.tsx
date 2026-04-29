@@ -22,7 +22,7 @@ import {
   type UpdateInfo
 } from './lib/ipc';
 import { t, type Locale } from './lib/i18n';
-import { createInitialState, reduceHelperEvent, validateSettings } from './state/app-store';
+import { createInitialState, reduceHelperEvent, resolveEffectiveLanguages, validateSettings } from './state/app-store';
 import type { CloseButtonAction, Settings, ThemePreset } from './types/app';
 
 type Page = 'translate' | 'settings';
@@ -197,6 +197,7 @@ export default function App() {
       translationProvider: values.translationProvider,
       themePreset: values.themePreset,
       customCss: values.customCss,
+      autoDetectZhEnDirection: values.autoDetectZhEnDirection,
       dismissedUpdate: previous.dismissedUpdate,
       proxyUrl: values.proxyUrl,
     };
@@ -211,6 +212,8 @@ export default function App() {
 
     const textToTranslate = textOverride ?? inputRef.current;
     if (!textToTranslate.trim()) return;
+
+    const effectiveLanguages = resolveEffectiveLanguages(currentSettings, textToTranslate);
 
     setIsLoading(true);
     setError(null);
@@ -228,8 +231,8 @@ export default function App() {
         currentSettings.baseUrl,
         '',
         currentSettings.model,
-        currentSettings.sourceLanguage,
-        currentSettings.targetLanguage,
+        effectiveLanguages.sourceLanguage,
+        effectiveLanguages.targetLanguage,
         textToTranslate,
         currentSettings.translationProvider,
         currentSettings.proxyUrl

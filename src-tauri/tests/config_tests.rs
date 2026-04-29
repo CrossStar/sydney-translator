@@ -37,6 +37,7 @@ fn settings_round_trip_keeps_non_secret_fields() {
         translation_provider: "ai".into(),
         theme_preset: "light".into(),
         custom_css: "".into(),
+        auto_detect_zh_en_direction: false,
         dismissed_update: "".into(),
         proxy_url: "".into(),
     };
@@ -75,6 +76,7 @@ fn saving_legacy_claude_theme_preset_writes_absolutely_dark() {
         translation_provider: "ai".into(),
         theme_preset: "claude".into(),
         custom_css: "".into(),
+        auto_detect_zh_en_direction: false,
         dismissed_update: "".into(),
         proxy_url: "".into(),
     };
@@ -114,6 +116,7 @@ fn failed_secret_save_restores_previous_non_secret_settings() {
         translation_provider: "ai".into(),
         theme_preset: "light".into(),
         custom_css: "".into(),
+        auto_detect_zh_en_direction: false,
         dismissed_update: "".into(),
         proxy_url: "".into(),
     };

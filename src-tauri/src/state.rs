@@ -26,6 +26,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub custom_css: String,
     #[serde(default)]
+    pub auto_detect_zh_en_direction: bool,
+    #[serde(default)]
     pub dismissed_update: String,
     #[serde(default)]
     pub proxy_url: String,
@@ -173,6 +175,7 @@ mod tests {
             translation_provider: "ai".into(),
             theme_preset: theme_preset.into(),
             custom_css: "".into(),
+            auto_detect_zh_en_direction: false,
             dismissed_update: "".into(),
             proxy_url: "".into(),
         }

@@ -39,6 +39,7 @@ const baseSettings = {
   translationProvider: 'ai' as const,
   themePreset: 'light' as const,
   customCss: '',
+  autoDetectZhEnDirection: false,
   dismissedUpdate: '',
   proxyUrl: ''
 };
@@ -203,6 +204,114 @@ it('auto-translates selection text when valid settings are loaded', async () => 
   });
 });
 
+it('auto-switches to Chinese to English when enabled and the input is Chinese', async () => {
+  mockedLoadSettings.mockResolvedValueOnce({
+    settings: {
+      ...baseSettings,
+      autoDetectZhEnDirection: true,
+      sourceLanguage: 'Japanese',
+      targetLanguage: 'Korean'
+    },
+    apiKey: ''
+  });
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(mockedLoadSettings).toHaveBeenCalledTimes(1);
+  });
+
+  fireEvent.change(screen.getByRole('textbox', { name: 'Source text' }), {
+    target: { value: '你好，世界' }
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Translate →' }));
+
+  await waitFor(() => {
+    expect(mockedTranslateText).toHaveBeenCalledWith(
+      'https://api.example.com/v1',
+      '',
+      'gpt-5-mini',
+      'Chinese',
+      'English',
+      '你好，世界',
+      'ai',
+      ''
+    );
+  });
+});
+
+it('auto-switches to English to Chinese when enabled and the input is English', async () => {
+  mockedLoadSettings.mockResolvedValueOnce({
+    settings: {
+      ...baseSettings,
+      autoDetectZhEnDirection: true,
+      sourceLanguage: 'Japanese',
+      targetLanguage: 'Korean'
+    },
+    apiKey: ''
+  });
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(mockedLoadSettings).toHaveBeenCalledTimes(1);
+  });
+
+  fireEvent.change(screen.getByRole('textbox', { name: 'Source text' }), {
+    target: { value: 'hello world' }
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Translate →' }));
+
+  await waitFor(() => {
+    expect(mockedTranslateText).toHaveBeenCalledWith(
+      'https://api.example.com/v1',
+      '',
+      'gpt-5-mini',
+      'English',
+      'Chinese',
+      'hello world',
+      'ai',
+      ''
+    );
+  });
+});
+
+it('preserves manually configured direction when zh-en auto-switch is disabled', async () => {
+  mockedLoadSettings.mockResolvedValueOnce({
+    settings: {
+      ...baseSettings,
+      autoDetectZhEnDirection: false,
+      sourceLanguage: 'Japanese',
+      targetLanguage: 'Korean'
+    },
+    apiKey: ''
+  });
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(mockedLoadSettings).toHaveBeenCalledTimes(1);
+  });
+
+  fireEvent.change(screen.getByRole('textbox', { name: 'Source text' }), {
+    target: { value: 'hello world' }
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Translate →' }));
+
+  await waitFor(() => {
+    expect(mockedTranslateText).toHaveBeenCalledWith(
+      'https://api.example.com/v1',
+      '',
+      'gpt-5-mini',
+      'Japanese',
+      'Korean',
+      'hello world',
+      'ai',
+      ''
+    );
+  });
+});
+
 it('applies the saved theme preset and custom css on load', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
     settings: {
@@ -220,6 +329,21 @@ it('applies the saved theme preset and custom css on load', async () => {
   });
 
   expect(document.getElementById('translator-custom-css')?.textContent).toBe(':root { --accent: rgb(1, 2, 3); }');
+});
+
+it('auto-saves zh-en auto-switch changes from settings', async () => {
+  render(<App />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(screen.getAllByRole('checkbox')[0]);
+
+  await waitFor(() => {
+    expect(mockedSaveSettingsWithApiKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({ autoDetectZhEnDirection: true })
+      })
+    );
+  });
 });
 
 it('auto-saves theme changes from settings', async () => {
@@ -365,6 +489,7 @@ it('auto-saves settings when the user edits fields', async () => {
         translationProvider: 'ai',
         themePreset: 'light',
         customCss: '',
+        autoDetectZhEnDirection: false,
         dismissedUpdate: '',
         proxyUrl: ''
       },

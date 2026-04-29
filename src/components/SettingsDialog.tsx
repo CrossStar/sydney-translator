@@ -17,6 +17,7 @@ export interface SettingsDialogValues {
   translationProvider: TranslationProvider;
   themePreset: ThemePreset;
   customCss: string;
+  autoDetectZhEnDirection: boolean;
   proxyUrl: string;
 }
 
@@ -78,6 +79,7 @@ function buildInitialValues(settings: Settings): SettingsDialogValues {
     translationProvider: settings.translationProvider ?? 'ai',
     themePreset: settings.themePreset ?? 'light',
     customCss: settings.customCss ?? '',
+    autoDetectZhEnDirection: settings.autoDetectZhEnDirection ?? false,
     proxyUrl: settings.proxyUrl ?? '',
   };
 }
@@ -286,6 +288,13 @@ export function SettingsDialog({
             <select className="settings-select" value={values.targetLanguage} onChange={(e) => set('targetLanguage', e.target.value)}>
               {LANGUAGES.filter((l) => l.value !== 'auto').map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
             </select>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row-left">
+              <span className="settings-row-label">{t(locale, 'label_auto_detect_zh_en_direction')}</span>
+              <span className="settings-row-desc">{t(locale, 'desc_auto_detect_zh_en_direction')}</span>
+            </div>
+            <Toggle checked={values.autoDetectZhEnDirection} onChange={(value) => set('autoDetectZhEnDirection', value)} />
           </div>
         </div>
 

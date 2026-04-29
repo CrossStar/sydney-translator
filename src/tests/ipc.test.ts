@@ -38,6 +38,7 @@ it('preserves api key presence when only the secret exists', async () => {
       translationProvider: 'ai',
       themePreset: 'light',
       customCss: '',
+      autoDetectZhEnDirection: false,
       dismissedUpdate: '',
       proxyUrl: ''
     },
@@ -59,6 +60,7 @@ it('maps legacy claude preset to absolutely dark on load', async () => {
       translation_provider: 'ai',
       theme_preset: 'claude',
       custom_css: '',
+      auto_detect_zh_en_direction: false,
       dismissed_update: '',
       proxy_url: ''
     },
@@ -80,6 +82,7 @@ it('maps legacy claude preset to absolutely dark on load', async () => {
       translationProvider: 'ai',
       themePreset: 'absolutely-dark',
       customCss: '',
+      autoDetectZhEnDirection: false,
       dismissedUpdate: '',
       proxyUrl: ''
     },
