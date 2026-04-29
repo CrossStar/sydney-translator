@@ -21,8 +21,14 @@ pub struct AppSettings {
     pub close_button_action: String,
     #[serde(default = "default_translation_provider")]
     pub translation_provider: String,
+    #[serde(default = "default_theme_preset")]
+    pub theme_preset: String,
+    #[serde(default)]
+    pub custom_css: String,
     #[serde(default)]
     pub dismissed_update: String,
+    #[serde(default)]
+    pub proxy_url: String,
 }
 
 fn default_close_button_action() -> String {
@@ -35,6 +41,23 @@ fn default_ui_language() -> String {
 
 fn default_translation_provider() -> String {
     "ai".to_string()
+}
+
+fn default_theme_preset() -> String {
+    "light".to_string()
+}
+
+fn normalize_theme_preset(theme_preset: &str) -> String {
+    match theme_preset {
+        "light" | "dark" | "absolutely-light" | "absolutely-dark" => theme_preset.to_string(),
+        "claude" => "absolutely-dark".to_string(),
+        _ => default_theme_preset(),
+    }
+}
+
+fn normalize_settings(mut settings: AppSettings) -> AppSettings {
+    settings.theme_preset = normalize_theme_preset(&settings.theme_preset);
+    settings
 }
 
 #[derive(Debug)]
@@ -106,7 +129,8 @@ pub fn save_settings(settings: &AppSettings) -> Result<(), SettingsError> {
         }
     }
 
-    let payload = serde_json::to_vec_pretty(settings)?;
+    let normalized = normalize_settings(settings.clone());
+    let payload = serde_json::to_vec_pretty(&normalized)?;
     fs::write(path, payload)?;
     Ok(())
 }
@@ -119,7 +143,7 @@ pub fn load_settings() -> Result<Option<AppSettings>, SettingsError> {
 
     let payload = fs::read(path)?;
     let parsed = serde_json::from_slice(&payload)?;
-    Ok(Some(parsed))
+    Ok(Some(normalize_settings(parsed)))
 }
 
 pub fn delete_settings() -> Result<(), SettingsError> {
@@ -130,4 +154,43 @@ pub fn delete_settings() -> Result<(), SettingsError> {
 
     fs::remove_file(path)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_settings, normalize_theme_preset, AppSettings};
+
+    fn sample_settings(theme_preset: &str) -> AppSettings {
+        AppSettings {
+            base_url: "https://example.com/v1".into(),
+            model: "gpt-5-mini".into(),
+            source_language: "auto".into(),
+            target_language: "English".into(),
+            global_hotkey: "ctrl+shift+t".into(),
+            selection_mode: "hotkey".into(),
+            ui_language: "en".into(),
+            close_button_action: "ask".into(),
+            translation_provider: "ai".into(),
+            theme_preset: theme_preset.into(),
+            custom_css: "".into(),
+            dismissed_update: "".into(),
+            proxy_url: "".into(),
+        }
+    }
+
+    #[test]
+    fn normalizes_legacy_claude_theme_preset() {
+        assert_eq!(normalize_theme_preset("claude"), "absolutely-dark");
+    }
+
+    #[test]
+    fn falls_back_to_light_for_unknown_theme_preset() {
+        assert_eq!(normalize_theme_preset("mystery-theme"), "light");
+    }
+
+    #[test]
+    fn normalizes_theme_preset_inside_settings() {
+        let settings = normalize_settings(sample_settings("claude"));
+        assert_eq!(settings.theme_preset, "absolutely-dark");
+    }
 }

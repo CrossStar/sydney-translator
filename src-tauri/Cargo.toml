@@ -1,6 +1,6 @@
 [package]
 name = "translator"
-version = "0.1.0"
+version = "0.0.2"
 description = "Lightweight GPT-powered translation for Windows"
 authors = ["you"]
 edition = "2021"

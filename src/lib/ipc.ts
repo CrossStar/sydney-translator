@@ -1,5 +1,5 @@
 import { createInitialState } from '../state/app-store';
-import type { CloseButtonAction, Settings, TranslationProvider } from '../types/app';
+import type { CloseButtonAction, Settings, ThemePreset, TranslationProvider } from '../types/app';
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -43,7 +43,24 @@ interface PersistedSettings {
   ui_language: string;
   close_button_action?: CloseButtonAction;
   translation_provider?: TranslationProvider;
+  theme_preset?: ThemePreset;
+  custom_css?: string;
   dismissed_update?: string;
+  proxy_url?: string;
+}
+
+function normalizeThemePreset(themePreset?: string): Settings['themePreset'] {
+  switch (themePreset) {
+    case 'dark':
+    case 'absolutely-light':
+    case 'absolutely-dark':
+    case 'light':
+      return themePreset;
+    case 'claude':
+      return 'absolutely-dark';
+    default:
+      return 'light';
+  }
 }
 
 function fromPersistedSettings(settings: PersistedSettings, apiKeyPresent: boolean): Settings {
@@ -58,7 +75,10 @@ function fromPersistedSettings(settings: PersistedSettings, apiKeyPresent: boole
     uiLanguage: (settings.ui_language as Settings['uiLanguage']) ?? 'en',
     closeButtonAction: settings.close_button_action ?? 'ask',
     translationProvider: settings.translation_provider ?? 'ai',
+    themePreset: normalizeThemePreset(settings.theme_preset),
+    customCss: settings.custom_css ?? '',
     dismissedUpdate: settings.dismissed_update ?? '',
+    proxyUrl: settings.proxy_url ?? '',
   };
 }
 
@@ -73,25 +93,26 @@ function toPersistedSettings(settings: Settings): PersistedSettings {
     ui_language: settings.uiLanguage,
     close_button_action: settings.closeButtonAction,
     translation_provider: settings.translationProvider,
+    theme_preset: settings.themePreset,
+    custom_css: settings.customCss,
     dismissed_update: settings.dismissedUpdate,
+    proxy_url: settings.proxyUrl,
   };
 }
 
-export async function loadSettings(): Promise<Settings | null> {
+export async function loadSettings(): Promise<{ settings: Settings; apiKey: string } | null> {
   if (!isTauri()) return null;
   const persisted = await invoke<{
     settings: PersistedSettings | null;
     api_key_present: boolean;
+    api_key: string;
   }>('load_settings');
 
-  if (!persisted.settings) {
-    return {
-      ...createInitialState().settings,
-      apiKeyPresent: persisted.api_key_present
-    };
-  }
+  const settings = persisted.settings
+    ? fromPersistedSettings(persisted.settings, persisted.api_key_present)
+    : { ...createInitialState().settings, apiKeyPresent: persisted.api_key_present };
 
-  return fromPersistedSettings(persisted.settings, persisted.api_key_present);
+  return { settings, apiKey: persisted.api_key };
 }
 
 export async function loadApiKey(): Promise<string | null> {
@@ -115,14 +136,14 @@ export async function saveSettingsWithApiKey(
   return fromPersistedSettings(persisted.settings, persisted.api_key_present);
 }
 
-export async function fetchModels(baseUrl: string, apiKey: string): Promise<string[]> {
-  if (!isTauri()) return [];
-  return invoke<string[]>('fetch_models', { baseUrl, apiKey });
+export async function testConnection(baseUrl: string, apiKey: string, proxyUrl = ''): Promise<number> {
+  if (!isTauri()) throw new Error('Not running in Tauri.');
+  return invoke<number>('test_connection', { baseUrl, apiKey, proxyUrl });
 }
 
-export async function testConnection(baseUrl: string, apiKey: string): Promise<number> {
-  if (!isTauri()) throw new Error('Not running in Tauri.');
-  return invoke<number>('test_connection', { baseUrl, apiKey });
+export async function fetchModels(baseUrl: string, apiKey: string, proxyUrl = ''): Promise<string[]> {
+  if (!isTauri()) return [];
+  return invoke<string[]>('fetch_models', { baseUrl, apiKey, proxyUrl });
 }
 
 export async function translateText(
@@ -132,10 +153,11 @@ export async function translateText(
   sourceLanguage: string,
   targetLanguage: string,
   text: string,
-  provider: TranslationProvider = 'ai'
+  provider: TranslationProvider = 'ai',
+  proxyUrl = ''
 ): Promise<void> {
   if (!isTauri()) throw new Error('Not running in Tauri.');
-  return invoke<void>('translate', { baseUrl, apiKey, model, sourceLanguage, targetLanguage, text, provider });
+  return invoke<void>('translate', { baseUrl, apiKey, model, sourceLanguage, targetLanguage, text, provider, proxyUrl });
 }
 
 export async function checkForUpdate(currentVersion: string, dismissedVersion: string): Promise<UpdateInfo> {

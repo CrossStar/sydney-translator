@@ -1,4 +1,3 @@
-use translator_lib::commands::save_settings_with_api_key;
 use translator_lib::state::AppSettings;
 use translator_lib::state::{load_settings, save_settings};
 use std::sync::Mutex;
@@ -36,7 +35,10 @@ fn settings_round_trip_keeps_non_secret_fields() {
         ui_language: "en".into(),
         close_button_action: "ask".into(),
         translation_provider: "ai".into(),
+        theme_preset: "light".into(),
+        custom_css: "".into(),
         dismissed_update: "".into(),
+        proxy_url: "".into(),
     };
 
     save_settings(&settings).expect("expected settings to save");
@@ -49,6 +51,44 @@ fn settings_round_trip_keeps_non_secret_fields() {
     let payload = std::fs::read_to_string(&path).expect("expected settings file to exist");
     assert!(!payload.contains("api-key"));
     assert!(!payload.contains("secret"));
+
+    clear_test_file(&path);
+    std::env::remove_var("TRANSLATOR_SETTINGS_PATH");
+}
+
+#[test]
+fn saving_legacy_claude_theme_preset_writes_absolutely_dark() {
+    let _guard = TEST_LOCK.lock().expect("expected test lock to succeed");
+    let path = temp_settings_path("normalize-claude");
+    std::env::set_var("TRANSLATOR_SETTINGS_PATH", &path);
+    clear_test_file(&path);
+
+    let settings = AppSettings {
+        base_url: "https://example.com/v1".into(),
+        model: "gpt-4.1-mini".into(),
+        source_language: "auto".into(),
+        target_language: "English".into(),
+        global_hotkey: "ctrl+shift+t".into(),
+        selection_mode: "hotkey".into(),
+        ui_language: "en".into(),
+        close_button_action: "ask".into(),
+        translation_provider: "ai".into(),
+        theme_preset: "claude".into(),
+        custom_css: "".into(),
+        dismissed_update: "".into(),
+        proxy_url: "".into(),
+    };
+
+    save_settings(&settings).expect("expected settings to save");
+
+    let saved = load_settings()
+        .expect("expected settings to load")
+        .expect("expected saved settings to exist");
+    assert_eq!(saved.theme_preset, "absolutely-dark");
+
+    let payload = std::fs::read_to_string(&path).expect("expected settings file to exist");
+    assert!(payload.contains("\"theme_preset\": \"absolutely-dark\""));
+    assert!(!payload.contains("\"theme_preset\": \"claude\""));
 
     clear_test_file(&path);
     std::env::remove_var("TRANSLATOR_SETTINGS_PATH");
@@ -72,7 +112,10 @@ fn failed_secret_save_restores_previous_non_secret_settings() {
         ui_language: "en".into(),
         close_button_action: "ask".into(),
         translation_provider: "ai".into(),
+        theme_preset: "light".into(),
+        custom_css: "".into(),
         dismissed_update: "".into(),
+        proxy_url: "".into(),
     };
     let updated = AppSettings {
         base_url: "https://updated.example/v1".into(),
@@ -84,7 +127,10 @@ fn failed_secret_save_restores_previous_non_secret_settings() {
         ui_language: "zh".into(),
         close_button_action: "hide".into(),
         translation_provider: "ai".into(),
+        theme_preset: "absolutely-dark".into(),
+        custom_css: ":root { --accent: #c68b5c; }".into(),
         dismissed_update: "".into(),
+        proxy_url: "http://127.0.0.1:7890".into(),
     };
 
     save_settings(&original).expect("expected original settings to save");

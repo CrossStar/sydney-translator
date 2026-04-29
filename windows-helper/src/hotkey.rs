@@ -117,14 +117,10 @@ pub fn start_hotkey_loop(global_hotkey: &str) -> anyhow::Result<()> {
 
         let message = unsafe { message.assume_init() };
         if message.message == WM_HOTKEY && message.wParam == registration.id as usize {
-            if let Some(text) = selection::capture_selection_text()? {
-                if let Some(event) = selection::should_emit_selection_text(Some(text)) {
-                    stdout_ipc::emit(&event)
-                        .context("failed to emit selection helper event")?;
-                } else {
-                    stdout_ipc::emit(&HelperEvent::hotkey_trigger())
-                        .context("failed to emit hotkey helper event")?;
-                }
+            let text = get_selected_text::get_selected_text().ok();
+            if let Some(text) = selection::should_emit_selection_text(text) {
+                stdout_ipc::emit(&text)
+                    .context("failed to emit selection helper event")?;
             } else {
                 stdout_ipc::emit(&HelperEvent::hotkey_trigger())
                     .context("failed to emit hotkey helper event")?;

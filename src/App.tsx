@@ -23,17 +23,32 @@ import {
 } from './lib/ipc';
 import { t, type Locale } from './lib/i18n';
 import { createInitialState, reduceHelperEvent, validateSettings } from './state/app-store';
-import type { CloseButtonAction, Settings } from './types/app';
+import type { CloseButtonAction, Settings, ThemePreset } from './types/app';
 
 type Page = 'translate' | 'settings';
 
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.0.2';
+const CUSTOM_THEME_STYLE_ID = 'translator-custom-css';
+
+function applyThemePreset(themePreset: ThemePreset) {
+  document.documentElement.setAttribute('data-theme', themePreset);
+}
+
+function applyCustomCss(customCss: string) {
+  let style = document.getElementById(CUSTOM_THEME_STYLE_ID) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = CUSTOM_THEME_STYLE_ID;
+    document.head.appendChild(style);
+  }
+  style.textContent = customCss;
+}
 
 export default function App() {
   const [page, setPage] = useState<Page>('translate');
   const [settings, setSettings] = useState<Settings>(createInitialState().settings);
+  const [loadedApiKey, setLoadedApiKey] = useState('');
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
@@ -53,6 +68,8 @@ export default function App() {
   useEffect(() => { inputRef.current = input; }, [input]);
   useEffect(() => { noticeRef.current = notice; }, [notice]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { applyThemePreset(settings.themePreset); }, [settings.themePreset]);
+  useEffect(() => { applyCustomCss(settings.customCss); }, [settings.customCss]);
 
   const locale: Locale = settings.uiLanguage ?? 'en';
 
@@ -63,10 +80,11 @@ export default function App() {
 
     async function init() {
       try {
-        const persisted = await loadSettings();
-        if (!cancelled && persisted) {
-          settingsRef.current = persisted;
-          setSettings(persisted);
+        const result = await loadSettings();
+        if (!cancelled && result) {
+          settingsRef.current = result.settings;
+          setSettings(result.settings);
+          setLoadedApiKey(result.apiKey);
         }
       } catch {
         if (!cancelled) setSettingsError('Unable to load settings.');
@@ -132,7 +150,6 @@ export default function App() {
       previous.globalHotkey !== requested.globalHotkey ||
       previous.selectionMode !== requested.selectionMode;
 
-    setIsSavingSettings(true);
     setSettingsError(null);
     try {
       const persisted = await saveSettingsWithApiKey({
@@ -142,6 +159,7 @@ export default function App() {
       });
       settingsRef.current = persisted;
       setSettings(persisted);
+      if (apiKey.trim()) setLoadedApiKey(apiKey.trim());
       if (shouldReloadHelper) {
         await reloadHelper();
       }
@@ -149,8 +167,6 @@ export default function App() {
     } catch (err) {
       setSettingsError(err instanceof Error ? err.message : 'Unable to save settings.');
       throw err;
-    } finally {
-      setIsSavingSettings(false);
     }
   }
 
@@ -170,7 +186,7 @@ export default function App() {
     const previous = settingsRef.current;
     const requested: Settings = {
       baseUrl: values.baseUrl,
-      apiKeyPresent: values.clearApiKey ? false : previous.apiKeyPresent || Boolean(values.apiKey.trim()),
+      apiKeyPresent: previous.apiKeyPresent || Boolean(values.apiKey.trim()),
       model: values.model,
       sourceLanguage: values.sourceLanguage,
       targetLanguage: values.targetLanguage,
@@ -179,10 +195,13 @@ export default function App() {
       uiLanguage: values.uiLanguage,
       closeButtonAction: values.closeButtonAction,
       translationProvider: values.translationProvider,
+      themePreset: values.themePreset,
+      customCss: values.customCss,
       dismissedUpdate: previous.dismissedUpdate,
+      proxyUrl: values.proxyUrl,
     };
 
-    await persistSettings(requested, values.clearApiKey, values.apiKey);
+    await persistSettings(requested, false, values.apiKey);
   }
 
   async function handleTranslate(textOverride?: string) {
@@ -212,7 +231,8 @@ export default function App() {
         currentSettings.sourceLanguage,
         currentSettings.targetLanguage,
         textToTranslate,
-        currentSettings.translationProvider
+        currentSettings.translationProvider,
+        currentSettings.proxyUrl
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to translate the current text.');
@@ -328,12 +348,12 @@ export default function App() {
         />
       ) : (
         <SettingsDialog
+          loadedApiKey={loadedApiKey}
           autostartEnabled={autostartEnabled}
           error={settingsError}
           fetchedModels={fetchedModels}
           initialSettings={settings}
           isAlwaysOnTop={isAlwaysOnTop}
-          isSaving={isSavingSettings}
           locale={locale}
           onFetchedModels={setFetchedModels}
           onSave={handleSaveSettings}

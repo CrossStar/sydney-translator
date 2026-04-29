@@ -16,7 +16,10 @@ describe('createInitialState', () => {
       uiLanguage: 'en',
       closeButtonAction: 'ask',
       translationProvider: 'ai',
-      dismissedUpdate: ''
+      themePreset: 'light',
+      customCss: '',
+      dismissedUpdate: '',
+      proxyUrl: ''
     });
   });
 

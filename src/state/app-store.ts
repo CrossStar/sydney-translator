@@ -17,7 +17,10 @@ export function createInitialState(): {
       uiLanguage: 'en',
       closeButtonAction: 'ask',
       translationProvider: 'ai',
+      themePreset: 'light',
+      customCss: '',
       dismissedUpdate: '',
+      proxyUrl: '',
     },
     translation: {
       input: '',

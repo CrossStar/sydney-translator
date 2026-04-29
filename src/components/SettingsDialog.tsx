@@ -2,12 +2,11 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { fetchModels as fetchModelsIpc, testConnection as testConnectionIpc } from '../lib/ipc';
 import { formatHotkeyForDisplay, hotkeyFromKeyboardEvent } from '../lib/hotkey';
 import { t, type Locale } from '../lib/i18n';
-import type { CloseButtonAction, SelectionMode, Settings, TranslationProvider, UiLanguage } from '../types/app';
+import type { CloseButtonAction, SelectionMode, Settings, ThemePreset, TranslationProvider, UiLanguage } from '../types/app';
 
 export interface SettingsDialogValues {
   baseUrl: string;
   apiKey: string;
-  clearApiKey: boolean;
   model: string;
   sourceLanguage: string;
   targetLanguage: string;
@@ -16,13 +15,16 @@ export interface SettingsDialogValues {
   uiLanguage: UiLanguage;
   closeButtonAction: CloseButtonAction;
   translationProvider: TranslationProvider;
+  themePreset: ThemePreset;
+  customCss: string;
+  proxyUrl: string;
 }
 
 interface SettingsPageProps {
   initialSettings: Settings;
+  loadedApiKey: string;
   fetchedModels: string[];
   onFetchedModels: (models: string[]) => void;
-  isSaving: boolean;
   error: string | null;
   locale: Locale;
   isAlwaysOnTop: boolean;
@@ -52,21 +54,20 @@ const LANGUAGES = [
   { value: 'Thai', label: 'Thai (ภาษาไทย)' }
 ];
 
-const MODELS = [
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-  { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' }
+const DEFAULT_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4-turbo',
+  'gpt-3.5-turbo',
+  'claude-opus-4-7',
+  'claude-sonnet-4-6',
+  'claude-haiku-4-5-20251001'
 ];
 
 function buildInitialValues(settings: Settings): SettingsDialogValues {
   return {
     baseUrl: settings.baseUrl,
     apiKey: '',
-    clearApiKey: false,
     model: settings.model,
     sourceLanguage: settings.sourceLanguage,
     targetLanguage: settings.targetLanguage,
@@ -75,6 +76,27 @@ function buildInitialValues(settings: Settings): SettingsDialogValues {
     uiLanguage: settings.uiLanguage ?? 'en',
     closeButtonAction: settings.closeButtonAction,
     translationProvider: settings.translationProvider ?? 'ai',
+    themePreset: settings.themePreset ?? 'light',
+    customCss: settings.customCss ?? '',
+    proxyUrl: settings.proxyUrl ?? '',
+  };
+}
+
+function buildSaveKey(values: SettingsDialogValues): string {
+  const { apiKey: _apiKey, ...rest } = values;
+  return JSON.stringify(rest);
+}
+
+function mergeInitialValues(
+  settings: Settings,
+  previousValues: SettingsDialogValues,
+  loadedApiKey: string,
+  apiKeyHydrated: boolean
+): SettingsDialogValues {
+  const nextValues = buildInitialValues(settings);
+  return {
+    ...nextValues,
+    apiKey: apiKeyHydrated ? previousValues.apiKey : (loadedApiKey || previousValues.apiKey),
   };
 }
 
@@ -90,9 +112,9 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 export function SettingsDialog({
   initialSettings,
+  loadedApiKey,
   fetchedModels,
   onFetchedModels,
-  isSaving,
   error,
   locale,
   isAlwaysOnTop,
@@ -107,21 +129,35 @@ export function SettingsDialog({
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   const [testMessage, setTestMessage] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
   const fetchRef = useRef(0);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hydratedRef = useRef(false);
   const hotkeyInputRef = useRef<HTMLInputElement | null>(null);
   const lastSavedKeyRef = useRef('');
 
+  const apiKeyHydratedRef = useRef(false);
+
   useEffect(() => {
-    const nextValues = buildInitialValues(initialSettings);
-    setValues(nextValues);
-    lastSavedKeyRef.current = JSON.stringify(nextValues);
+    setValues((prev) => {
+      const nextValues = mergeInitialValues(initialSettings, prev, loadedApiKey, apiKeyHydratedRef.current);
+      lastSavedKeyRef.current = buildSaveKey(nextValues);
+      return nextValues;
+    });
+    if (!apiKeyHydratedRef.current && loadedApiKey) {
+      apiKeyHydratedRef.current = true;
+    }
     hydratedRef.current = true;
     setIsRecordingHotkey(false);
-  }, [initialSettings]);
+  }, [initialSettings, loadedApiKey]);
 
-  const saveKey = useMemo(() => JSON.stringify(values), [values]);
+  const saveKey = useMemo(() => buildSaveKey(values), [values]);
+  const modelSuggestions = useMemo(() => {
+    const base = fetchedModels.length > 0 ? fetchedModels : DEFAULT_MODELS;
+    return values.model && !base.includes(values.model)
+      ? [values.model, ...base]
+      : base;
+  }, [fetchedModels, values.model]);
   const hotkeyDisplayValue = isRecordingHotkey
     ? t(locale, 'hotkey_recording')
     : formatHotkeyForDisplay(values.globalHotkey);
@@ -150,7 +186,7 @@ export function SettingsDialog({
   }
 
   async function handleTestConnection() {
-    const { baseUrl, apiKey } = values;
+    const { baseUrl, apiKey, proxyUrl } = values;
     const hasKey = apiKey.trim() || initialSettings.apiKeyPresent;
     if (!baseUrl.trim() || !hasKey) {
       setTestStatus('fail');
@@ -160,7 +196,7 @@ export function SettingsDialog({
     setTestStatus('testing');
     setTestMessage('');
     try {
-      const ms = await testConnectionIpc(baseUrl, apiKey.trim());
+      const ms = await testConnectionIpc(baseUrl, apiKey.trim(), proxyUrl);
       setTestStatus('ok');
       setTestMessage(`${t(locale, 'test_connection_ok')} (${ms}ms)`);
     } catch (err) {
@@ -170,7 +206,7 @@ export function SettingsDialog({
   }
 
   async function handleFetchModels() {
-    const { baseUrl, apiKey } = values;
+    const { baseUrl, apiKey, proxyUrl } = values;
     const hasKey = apiKey.trim() || initialSettings.apiKeyPresent;
     if (!baseUrl.trim() || !hasKey) {
       setModelsError(t(locale, 'err_enter_url_key'));
@@ -180,10 +216,10 @@ export function SettingsDialog({
     setModelsFetching(true);
     setModelsError(null);
     try {
-      const models = await fetchModelsIpc(baseUrl, apiKey.trim());
+      const models = await fetchModelsIpc(baseUrl, apiKey.trim(), proxyUrl);
       if (fetchRef.current !== id) return;
       onFetchedModels(models);
-      if (models.length > 0 && !models.includes(values.model)) {
+      if (models.length > 0 && !values.model.trim()) {
         set('model', models[0]);
       }
     } catch (err) {
@@ -281,37 +317,60 @@ export function SettingsDialog({
             <div className="settings-row">
               <div className="settings-row-left">
                 <span className="settings-row-label">{t(locale, 'label_api_key')}</span>
-                <span className="settings-row-desc">{initialSettings.apiKeyPresent ? t(locale, 'desc_api_key_set') : t(locale, 'desc_api_key_unset')}</span>
               </div>
-              <input
-                className="settings-input"
-                placeholder={initialSettings.apiKeyPresent ? '••••••••' : 'sk-…'}
-                type="password"
-                value={values.apiKey}
-                onChange={(e) => setValues((prev) => ({ ...prev, apiKey: e.target.value, clearApiKey: e.target.value.trim() ? false : prev.clearApiKey }))}
-              />
+              <div className="settings-input-eye-wrap">
+                <input
+                  className="settings-input settings-input-eye"
+                  placeholder="sk-xxxx"
+                  type={showApiKey ? 'text' : 'password'}
+                  value={values.apiKey}
+                  onChange={(e) => setValues((prev) => ({ ...prev, apiKey: e.target.value }))}
+                  onBlur={() => {
+                    if (values.apiKey.trim()) void onSave(values).catch(() => {});
+                  }}
+                />
+                {values.apiKey && (
+                  <button
+                    aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                    className="eye-btn"
+                    tabIndex={-1}
+                    type="button"
+                    onClick={() => setShowApiKey((v) => !v)}
+                  >
+                    {showApiKey ? (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    ) : (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
-            {initialSettings.apiKeyPresent && (
-              <div className="settings-row">
-                <div className="settings-row-left">
-                  <span className="settings-row-label">{t(locale, 'label_clear_key')}</span>
-                  <span className="settings-row-desc">{t(locale, 'desc_clear_key')}</span>
-                </div>
-                <Toggle checked={values.clearApiKey} onChange={(v) => setValues((prev) => ({ ...prev, clearApiKey: v, apiKey: v ? '' : prev.apiKey }))} />
-              </div>
-            )}
             <div className="settings-row">
               <div className="settings-row-left">
                 <span className="settings-row-label">{t(locale, 'label_model')}</span>
                 {modelsError && <span className="settings-row-desc" style={{ color: 'var(--danger)' }}>{modelsError}</span>}
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <select className="settings-select" value={values.model} onChange={(e) => set('model', e.target.value)}>
-                  {[...new Set([...MODELS.map((m) => m.value), ...fetchedModels])].map((id) => {
-                    const label = MODELS.find((m) => m.value === id)?.label ?? id;
-                    return <option key={id} value={id}>{label}</option>;
-                  })}
-                </select>
+                <>
+                  <input
+                    className="settings-input"
+                    list="model-suggestions"
+                    type="text"
+                    value={values.model}
+                    onChange={(e) => set('model', e.target.value)}
+                  />
+                  <datalist id="model-suggestions">
+                    {modelSuggestions.map((id) => <option key={id} value={id} />)}
+                  </datalist>
+                </>
                 <button className="btn btn-ghost" disabled={modelsFetching} type="button" onClick={handleFetchModels}>
                   {modelsFetching ? '…' : t(locale, 'btn_refresh')}
                 </button>
@@ -357,6 +416,34 @@ export function SettingsDialog({
         </div>
 
         <div className="settings-section">
+          <div className="settings-section-title">{t(locale, 'section_appearance')}</div>
+          <div className="settings-row">
+            <div className="settings-row-left">
+              <span className="settings-row-label">{t(locale, 'label_theme_preset')}</span>
+              <span className="settings-row-desc">{t(locale, 'desc_theme_preset')}</span>
+            </div>
+            <select className="settings-select" value={values.themePreset} onChange={(e) => set('themePreset', e.target.value as ThemePreset)}>
+              <option value="light">{t(locale, 'option_theme_light')}</option>
+              <option value="dark">{t(locale, 'option_theme_dark')}</option>
+              <option value="absolutely-light">{t(locale, 'option_theme_absolutely_light')}</option>
+              <option value="absolutely-dark">{t(locale, 'option_theme_absolutely_dark')}</option>
+            </select>
+          </div>
+          <div className="settings-row settings-row-textarea">
+            <div className="settings-row-left">
+              <span className="settings-row-label">{t(locale, 'label_custom_css')}</span>
+              <span className="settings-row-desc">{t(locale, 'desc_custom_css')}</span>
+            </div>
+            <textarea
+              className="settings-textarea"
+              placeholder=":root { --accent: #c27a44; }"
+              value={values.customCss}
+              onChange={(e) => set('customCss', e.target.value.slice(0, 50000))}
+            />
+          </div>
+        </div>
+
+        <div className="settings-section">
           <div className="settings-section-title">{t(locale, 'section_window')}</div>
           <div className="settings-row">
             <div className="settings-row-left">
@@ -385,11 +472,24 @@ export function SettingsDialog({
               <option value="zh">中文</option>
             </select>
           </div>
+          <div className="settings-row">
+            <div className="settings-row-left">
+              <span className="settings-row-label">{t(locale, 'label_proxy')}</span>
+              <span className="settings-row-desc">{t(locale, 'desc_proxy')}</span>
+            </div>
+            <input
+              className="settings-input"
+              placeholder="http://127.0.0.1:7890"
+              type="text"
+              value={values.proxyUrl}
+              onChange={(e) => set('proxyUrl', e.target.value)}
+            />
+          </div>
         </div>
 
-        {(error || isSaving) && (
+        {error && (
           <p className="settings-error">
-            {error ? `⚠ ${error}` : t(locale, 'btn_saving')}
+            {`⚠ ${error}`}
           </p>
         )}
       </div>

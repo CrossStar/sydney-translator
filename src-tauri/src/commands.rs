@@ -13,8 +13,17 @@ fn resolve_api_key(api_key: String) -> Result<String, String> {
         .ok_or_else(|| "No API key stored. Enter one in Settings.".to_string())
 }
 
+fn build_client(proxy_url: &str) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder();
+    if !proxy_url.trim().is_empty() {
+        let proxy = reqwest::Proxy::all(proxy_url).map_err(|e| e.to_string())?;
+        builder = builder.proxy(proxy);
+    }
+    builder.build().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
-pub async fn test_connection(base_url: String, api_key: String) -> Result<u64, String> {
+pub async fn test_connection(base_url: String, api_key: String, proxy_url: String) -> Result<u64, String> {
     let key = resolve_api_key(api_key)?;
     let base = base_url.trim_end_matches('/');
     let url = if base.ends_with("/v1") {
@@ -22,7 +31,7 @@ pub async fn test_connection(base_url: String, api_key: String) -> Result<u64, S
     } else {
         format!("{base}/v1/models")
     };
-    let client = reqwest::Client::new();
+    let client = build_client(&proxy_url)?;
     let start = std::time::Instant::now();
     let resp = client
         .get(&url)
@@ -39,7 +48,7 @@ pub async fn test_connection(base_url: String, api_key: String) -> Result<u64, S
 }
 
 #[tauri::command]
-pub async fn fetch_models(base_url: String, api_key: String) -> Result<Vec<String>, String> {
+pub async fn fetch_models(base_url: String, api_key: String, proxy_url: String) -> Result<Vec<String>, String> {
     let key = resolve_api_key(api_key)?;
     let base = base_url.trim_end_matches('/');
     let url = if base.ends_with("/v1") {
@@ -47,7 +56,7 @@ pub async fn fetch_models(base_url: String, api_key: String) -> Result<Vec<Strin
     } else {
         format!("{base}/v1/models")
     };
-    let client = reqwest::Client::new();
+    let client = build_client(&proxy_url)?;
     let resp = client
         .get(&url)
         .header("Authorization", format!("Bearer {key}"))
@@ -67,17 +76,83 @@ pub async fn fetch_models(base_url: String, api_key: String) -> Result<Vec<Strin
     Ok(ids)
 }
 
+fn to_bing_lang(name: &str) -> &str {
+    match name {
+        "Chinese" => "zh-Hans",
+        "English" => "en",
+        "Japanese" => "ja",
+        "Korean" => "ko",
+        "French" => "fr",
+        "German" => "de",
+        "Spanish" => "es",
+        "Portuguese" => "pt",
+        "Russian" => "ru",
+        "Arabic" => "ar",
+        "Italian" => "it",
+        "Dutch" => "nl",
+        "Polish" => "pl",
+        "Turkish" => "tr",
+        "Vietnamese" => "vi",
+        "Thai" => "th",
+        other => other,
+    }
+}
+
+fn to_google_lang(name: &str) -> &str {
+    match name {
+        "Chinese" => "zh-CN",
+        "English" => "en",
+        "Japanese" => "ja",
+        "Korean" => "ko",
+        "French" => "fr",
+        "German" => "de",
+        "Spanish" => "es",
+        "Portuguese" => "pt",
+        "Russian" => "ru",
+        "Arabic" => "ar",
+        "Italian" => "it",
+        "Dutch" => "nl",
+        "Polish" => "pl",
+        "Turkish" => "tr",
+        "Vietnamese" => "vi",
+        "Thai" => "th",
+        "auto" => "auto",
+        other => other,
+    }
+}
+
 async fn translate_bing(
     app: &tauri::AppHandle,
     source_language: &str,
     target_language: &str,
     text: &str,
+    proxy_url: &str,
 ) -> Result<(), String> {
     use tauri::Emitter;
-    let from = if source_language == "auto" { "" } else { source_language };
-    let url = format!(
-        "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to={target_language}&from={from}"
-    );
+
+    // Step 1: fetch a free auth token from the Bing translator web endpoint
+    let token_client = build_client(proxy_url)?;
+    let token_resp = token_client
+        .get("https://edge.microsoft.com/translate/auth")
+        .header("User-Agent", "Mozilla/5.0")
+        .send()
+        .await
+        .map_err(|e| format!("Bing auth: {e}"))?;
+
+    if !token_resp.status().is_success() {
+        return Err(format!("Bing auth HTTP {}", token_resp.status()));
+    }
+    let token = token_resp.text().await.map_err(|e| e.to_string())?;
+
+    // Step 2: call the translate API with the token
+    let to = to_bing_lang(target_language);
+    let url = if source_language == "auto" {
+        format!("https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to={to}")
+    } else {
+        let from = to_bing_lang(source_language);
+        format!("https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to={to}&from={from}")
+    };
+
     #[derive(Serialize)]
     struct BingBody { #[serde(rename = "Text")] text: String }
     #[derive(Deserialize)]
@@ -85,9 +160,10 @@ async fn translate_bing(
     #[derive(Deserialize)]
     struct BingResult { translations: Vec<BingTranslation> }
 
-    let client = reqwest::Client::new();
+    let client = build_client(proxy_url)?;
     let resp = client
         .post(&url)
+        .header("Authorization", format!("Bearer {token}"))
         .header("Content-Type", "application/json")
         .json(&[BingBody { text: text.to_string() }])
         .send()
@@ -117,14 +193,16 @@ async fn translate_google(
     source_language: &str,
     target_language: &str,
     text: &str,
+    proxy_url: &str,
 ) -> Result<(), String> {
     use tauri::Emitter;
-    let sl = if source_language == "auto" { "auto" } else { source_language };
+    let sl = to_google_lang(source_language);
+    let tl = to_google_lang(target_language);
     let url = format!(
-        "https://translate.googleapis.com/translate_a/single?client=gtx&sl={sl}&tl={target_language}&dt=t&q={q}",
+        "https://translate.googleapis.com/translate_a/single?client=gtx&sl={sl}&tl={tl}&dt=t&q={q}",
         q = urlencoding::encode(text)
     );
-    let client = reqwest::Client::new();
+    let client = build_client(proxy_url)?;
     let resp = client
         .get(&url)
         .header("User-Agent", "Mozilla/5.0")
@@ -160,10 +238,11 @@ pub async fn translate(
     target_language: String,
     text: String,
     provider: String,
+    proxy_url: String,
 ) -> Result<(), String> {
     match provider.as_str() {
-        "bing" => return translate_bing(&app, &source_language, &target_language, &text).await,
-        "google" => return translate_google(&app, &source_language, &target_language, &text).await,
+        "bing" => return translate_bing(&app, &source_language, &target_language, &text, &proxy_url).await,
+        "google" => return translate_google(&app, &source_language, &target_language, &text, &proxy_url).await,
         _ => {}
     }
 
@@ -186,7 +265,7 @@ pub async fn translate(
     #[derive(Serialize)]
     struct ChatRequest { model: String, messages: Vec<Message>, stream: bool }
 
-    let client = reqwest::Client::new();
+    let client = build_client(&proxy_url)?;
     let resp = client
         .post(&url)
         .header("Authorization", format!("Bearer {key}"))
@@ -296,6 +375,7 @@ fn semver_gt(a: &str, b: &str) -> bool {
 pub struct LoadSettingsResponse {
     pub settings: Option<AppSettings>,
     pub api_key_present: bool,
+    pub api_key: String,
 }
 
 #[derive(Serialize)]
@@ -362,10 +442,15 @@ where
 pub fn load_settings() -> Result<LoadSettingsResponse, String> {
     let settings = state::load_settings().map_err(|err| err.to_string())?;
     let api_key_present = secure_store::has_api_key().unwrap_or(false);
+    let api_key = secure_store::load_api_key()
+        .ok()
+        .flatten()
+        .unwrap_or_default();
 
     Ok(LoadSettingsResponse {
         settings,
         api_key_present,
+        api_key,
     })
 }
 
@@ -449,7 +534,10 @@ mod tests {
             ui_language: "en".into(),
             close_button_action: "ask".into(),
             translation_provider: "ai".into(),
+            theme_preset: "light".into(),
+            custom_css: "".into(),
             dismissed_update: "".into(),
+            proxy_url: "".into(),
         }
     }
 

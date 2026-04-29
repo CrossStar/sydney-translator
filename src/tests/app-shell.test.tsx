@@ -1,14 +1,17 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import App from '../App';
 import {
+  checkForUpdate,
   exitApplication,
+  fetchModels,
   getAutostartEnabled,
   hideCurrentWindow,
   listenToHelperEvents,
   listenToOpenSettings,
   loadSettings,
   minimizeCurrentWindow,
+  openUrl,
   reloadHelper,
   saveSettingsWithApiKey,
   setAlwaysOnTop,
@@ -23,12 +26,31 @@ type HelperEvent = {
   source?: 'selection' | 'hotkey';
 };
 
+const baseSettings = {
+  baseUrl: 'https://api.example.com/v1',
+  apiKeyPresent: true,
+  model: 'gpt-5-mini',
+  sourceLanguage: 'auto',
+  targetLanguage: 'English',
+  globalHotkey: 'ctrl+shift+t',
+  selectionMode: 'hotkey' as const,
+  uiLanguage: 'en' as const,
+  closeButtonAction: 'ask' as const,
+  translationProvider: 'ai' as const,
+  themePreset: 'light' as const,
+  customCss: '',
+  dismissedUpdate: '',
+  proxyUrl: ''
+};
+
 let helperEventListener: ((payload: { payload: HelperEvent }) => void) | null = null;
 let openSettingsListener: (() => void) | null = null;
 let translationChunkListener: ((payload: { payload: string }) => void) | null = null;
 
 vi.mock('../lib/ipc', () => ({
+  checkForUpdate: vi.fn(async () => ({ latestVersion: '', releaseUrl: '', hasUpdate: false })),
   exitApplication: vi.fn(async () => {}),
+  fetchModels: vi.fn(async () => []),
   getAutostartEnabled: vi.fn(async () => false),
   hideCurrentWindow: vi.fn(async () => {}),
   listenToHelperEvents: vi.fn(async (handler: (event: HelperEvent) => void) => {
@@ -45,6 +67,7 @@ vi.mock('../lib/ipc', () => ({
   }),
   loadSettings: vi.fn(),
   minimizeCurrentWindow: vi.fn(async () => {}),
+  openUrl: vi.fn(async () => {}),
   reloadHelper: vi.fn(),
   saveSettingsWithApiKey: vi.fn(),
   setAlwaysOnTop: vi.fn(),
@@ -53,13 +76,16 @@ vi.mock('../lib/ipc', () => ({
   translateText: vi.fn(async () => {})
 }));
 
+const mockedCheckForUpdate = vi.mocked(checkForUpdate);
 const mockedExitApplication = vi.mocked(exitApplication);
+const mockedFetchModels = vi.mocked(fetchModels);
 const mockedGetAutostartEnabled = vi.mocked(getAutostartEnabled);
 const mockedHideCurrentWindow = vi.mocked(hideCurrentWindow);
 const mockedListenToHelperEvents = vi.mocked(listenToHelperEvents);
 const mockedListenToOpenSettings = vi.mocked(listenToOpenSettings);
 const mockedLoadSettings = vi.mocked(loadSettings);
 const mockedMinimizeCurrentWindow = vi.mocked(minimizeCurrentWindow);
+const mockedOpenUrl = vi.mocked(openUrl);
 const mockedReloadHelper = vi.mocked(reloadHelper);
 const mockedSaveSettingsWithApiKey = vi.mocked(saveSettingsWithApiKey);
 const mockedSetAlwaysOnTop = vi.mocked(setAlwaysOnTop);
@@ -95,29 +121,38 @@ beforeEach(() => {
   helperEventListener = null;
   openSettingsListener = null;
   translationChunkListener = null;
+  document.documentElement.removeAttribute('data-theme');
+  document.getElementById('translator-custom-css')?.remove();
+
+  mockedCheckForUpdate.mockReset();
+  mockedCheckForUpdate.mockResolvedValue({ latestVersion: '', releaseUrl: '', hasUpdate: false });
   mockedExitApplication.mockReset();
   mockedExitApplication.mockResolvedValue();
+  mockedFetchModels.mockReset();
+  mockedFetchModels.mockResolvedValue([]);
   mockedGetAutostartEnabled.mockReset();
-  mockedListenToHelperEvents.mockClear();
-  mockedListenToOpenSettings.mockClear();
-  mockedLoadSettings.mockReset();
-  mockedReloadHelper.mockReset();
-  mockedSaveSettingsWithApiKey.mockReset();
-  mockedSetAlwaysOnTop.mockReset();
-  mockedSetAutostartEnabled.mockReset();
-  mockedTranslateText.mockReset();
   mockedGetAutostartEnabled.mockResolvedValue(false);
   mockedHideCurrentWindow.mockReset();
   mockedHideCurrentWindow.mockResolvedValue();
+  mockedListenToHelperEvents.mockClear();
+  mockedListenToOpenSettings.mockClear();
+  mockedLoadSettings.mockReset();
   mockedLoadSettings.mockResolvedValue(null);
   mockedMinimizeCurrentWindow.mockReset();
   mockedMinimizeCurrentWindow.mockResolvedValue();
+  mockedOpenUrl.mockReset();
+  mockedOpenUrl.mockResolvedValue();
+  mockedReloadHelper.mockReset();
   mockedReloadHelper.mockResolvedValue();
+  mockedSaveSettingsWithApiKey.mockReset();
+  mockedSaveSettingsWithApiKey.mockImplementation(async ({ settings }) => settings);
+  mockedSetAlwaysOnTop.mockReset();
   mockedSetAlwaysOnTop.mockResolvedValue();
+  mockedSetAutostartEnabled.mockReset();
   mockedSetAutostartEnabled.mockResolvedValue();
   mockedStartDraggingCurrentWindow.mockReset();
   mockedStartDraggingCurrentWindow.mockResolvedValue();
-  mockedSaveSettingsWithApiKey.mockImplementation(async ({ settings }) => settings);
+  mockedTranslateText.mockReset();
   mockedTranslateText.mockImplementation(async () => {
     pushTranslationChunk('translated');
   });
@@ -140,17 +175,8 @@ it('hydrates the input when a selection helper event arrives', async () => {
 
 it('auto-translates selection text when valid settings are loaded', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
-    baseUrl: 'https://api.example.com/v1',
-    apiKeyPresent: true,
-    model: 'gpt-5-mini',
-    sourceLanguage: 'auto',
-    targetLanguage: 'Chinese',
-    globalHotkey: 'ctrl+shift+t',
-    selectionMode: 'auto-popup',
-    uiLanguage: 'en',
-    closeButtonAction: 'ask',
-    translationProvider: 'ai',
-    dismissedUpdate: ''
+    settings: { ...baseSettings, targetLanguage: 'Chinese', selectionMode: 'auto-popup' },
+    apiKey: ''
   });
 
   render(<App />);
@@ -171,8 +197,62 @@ it('auto-translates selection text when valid settings are loaded', async () => 
       'auto',
       'Chinese',
       'selected text',
-      'ai'
+      'ai',
+      ''
     );
+  });
+});
+
+it('applies the saved theme preset and custom css on load', async () => {
+  mockedLoadSettings.mockResolvedValueOnce({
+    settings: {
+      ...baseSettings,
+      themePreset: 'absolutely-dark',
+      customCss: ':root { --accent: rgb(1, 2, 3); }'
+    },
+    apiKey: ''
+  });
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(document.documentElement.getAttribute('data-theme')).toBe('absolutely-dark');
+  });
+
+  expect(document.getElementById('translator-custom-css')?.textContent).toBe(':root { --accent: rgb(1, 2, 3); }');
+});
+
+it('auto-saves theme changes from settings', async () => {
+  render(<App />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.change(screen.getByDisplayValue('Default Light'), {
+    target: { value: 'dark' }
+  });
+
+  await waitFor(() => {
+    expect(mockedSaveSettingsWithApiKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({ themePreset: 'dark', customCss: '' })
+      })
+    );
+  });
+
+  await waitFor(() => {
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+  });
+});
+
+it('updates injected custom css when the textarea changes', async () => {
+  render(<App />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.change(screen.getByPlaceholderText(':root { --accent: #c27a44; }'), {
+    target: { value: ':root { --bg: #111; }' }
+  });
+
+  await waitFor(() => {
+    expect(document.getElementById('translator-custom-css')?.textContent).toBe(':root { --bg: #111; }');
   });
 });
 
@@ -202,17 +282,8 @@ it('shows the translation placeholder area', () => {
 
 it('renders streamed output after translating with valid settings', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
-    baseUrl: 'https://api.example.com/v1',
-    apiKeyPresent: true,
-    model: 'gpt-5-mini',
-    sourceLanguage: 'auto',
-    targetLanguage: 'Chinese',
-    globalHotkey: 'ctrl+shift+t',
-    selectionMode: 'hotkey',
-    uiLanguage: 'en',
-    closeButtonAction: 'ask',
-    translationProvider: 'ai',
-    dismissedUpdate: ''
+    settings: { ...baseSettings, targetLanguage: 'Chinese' },
+    apiKey: ''
   });
   mockedTranslateText.mockImplementationOnce(async () => {
     pushTranslationChunk('bon');
@@ -238,7 +309,8 @@ it('renders streamed output after translating with valid settings', async () => 
       'auto',
       'Chinese',
       'hello',
-      'ai'
+      'ai',
+      ''
     );
   });
 
@@ -266,8 +338,6 @@ it('shows a settings error message when auto-save fails', async () => {
     target: { value: 'https://api.example.com/v1' }
   });
 
-  // Wait until the error text appears — this means the rejected save has been
-  // caught and handled by App, so no unhandled rejection leaks after the test.
   await screen.findByText('⚠ Save failed.');
   await waitFor(() => expect(mockedSaveSettingsWithApiKey).toHaveBeenCalledTimes(1));
 });
@@ -293,11 +363,49 @@ it('auto-saves settings when the user edits fields', async () => {
         uiLanguage: 'en',
         closeButtonAction: 'ask',
         translationProvider: 'ai',
-        dismissedUpdate: ''
+        themePreset: 'light',
+        customCss: '',
+        dismissedUpdate: '',
+        proxyUrl: ''
       },
       apiKey: '',
       clearApiKey: false
     });
+  });
+});
+
+it('keeps a manually entered model after refresh and saves the typed value', async () => {
+  mockedLoadSettings.mockResolvedValueOnce({
+    settings: baseSettings,
+    apiKey: ''
+  });
+  mockedFetchModels.mockResolvedValueOnce(['gpt-5-mini', 'gpt-5']);
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(mockedLoadSettings).toHaveBeenCalledTimes(1);
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  await screen.findByText('API Configuration');
+
+  const modelInput = document.querySelector('input[list="model-suggestions"]') as HTMLInputElement;
+  fireEvent.change(modelInput, { target: { value: 'custom-model' } });
+  fireEvent.click(screen.getByRole('button', { name: '↻' }));
+
+  await waitFor(() => {
+    expect(mockedFetchModels).toHaveBeenCalledTimes(1);
+  });
+
+  expect(modelInput).toHaveValue('custom-model');
+
+  await waitFor(() => {
+    expect(mockedSaveSettingsWithApiKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({ model: 'custom-model' })
+      })
+    );
   });
 });
 
@@ -365,17 +473,8 @@ it('persists close action when remember is checked', async () => {
 
 it('skips close prompt when action is already hide', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
-    baseUrl: 'https://api.example.com/v1',
-    apiKeyPresent: true,
-    model: 'gpt-5-mini',
-    sourceLanguage: 'auto',
-    targetLanguage: 'English',
-    globalHotkey: 'ctrl+shift+t',
-    selectionMode: 'hotkey',
-    uiLanguage: 'en',
-    closeButtonAction: 'hide',
-    translationProvider: 'ai',
-    dismissedUpdate: ''
+    settings: { ...baseSettings, closeButtonAction: 'hide' },
+    apiKey: ''
   });
 
   render(<App />);
@@ -391,17 +490,8 @@ it('skips close prompt when action is already hide', async () => {
 
 it('skips close prompt and exits when action is already exit', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
-    baseUrl: 'https://api.example.com/v1',
-    apiKeyPresent: true,
-    model: 'gpt-5-mini',
-    sourceLanguage: 'auto',
-    targetLanguage: 'English',
-    globalHotkey: 'ctrl+shift+t',
-    selectionMode: 'hotkey',
-    uiLanguage: 'en',
-    closeButtonAction: 'exit',
-    translationProvider: 'ai',
-    dismissedUpdate: ''
+    settings: { ...baseSettings, closeButtonAction: 'exit' },
+    apiKey: ''
   });
 
   render(<App />);
