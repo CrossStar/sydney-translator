@@ -6,3 +6,6 @@ windows-helper/target/
 src-tauri/binaries/
 .tmp/
 .claude/
+styles.css.bak
+styles.css.good
+.gitignore
