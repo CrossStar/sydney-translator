@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { fetchModels as fetchModelsIpc, testConnection as testConnectionIpc } from '../lib/ipc';
+import { fetchModels as fetchModelsIpc, testConnection as testConnectionIpc, pickAudioFile } from '../lib/ipc';
 import { formatHotkeyForDisplay, hotkeyFromKeyboardEvent } from '../lib/hotkey';
 import { t, type Locale } from '../lib/i18n';
-import type { CloseButtonAction, SelectionMode, Settings, ThemePreset, TranslationProvider, UiLanguage } from '../types/app';
+import type { CloseButtonAction, SelectionMode, Settings, ThemePreset, TranslationProvider, UiLanguage, VoiceProfile, VoiceProfileType } from '../types/app';
 
 export interface SettingsDialogValues {
   baseUrl: string;
@@ -19,11 +19,18 @@ export interface SettingsDialogValues {
   customCss: string;
   autoDetectZhEnDirection: boolean;
   proxyUrl: string;
+  ttsEnabled: boolean;
+  ttsAutoPlay: boolean;
+  ttsApiEndpoint: string;
+  ttsApiKey: string;
+  ttsDefaultVoiceId: string;
+  ttsVoiceProfiles: VoiceProfile[];
 }
 
 interface SettingsPageProps {
   initialSettings: Settings;
   loadedApiKey: string;
+  loadedTtsApiKey: string;
   fetchedModels: string[];
   onFetchedModels: (models: string[]) => void;
   error: string | null;
@@ -55,6 +62,18 @@ const LANGUAGES = [
   { value: 'Thai', label: 'Thai (ภาษาไทย)' }
 ];
 
+const PRESET_VOICE_OPTIONS = [
+  { id: 'mimo_default', name: 'MiMo Default' },
+  { id: '冰糖', name: '冰糖 (Bingtang)' },
+  { id: '茉莉', name: '茉莉 (Moli)' },
+  { id: '苏打', name: '苏打 (Suda)' },
+  { id: '白桦', name: '白桦 (Baihua)' },
+  { id: 'Mia', name: 'Mia' },
+  { id: 'Chloe', name: 'Chloe' },
+  { id: 'Milo', name: 'Milo' },
+  { id: 'Dean', name: 'Dean' },
+];
+
 const DEFAULT_MODELS = [
   'gpt-4o',
   'gpt-4o-mini',
@@ -81,6 +100,12 @@ function buildInitialValues(settings: Settings): SettingsDialogValues {
     customCss: settings.customCss ?? '',
     autoDetectZhEnDirection: settings.autoDetectZhEnDirection ?? false,
     proxyUrl: settings.proxyUrl ?? '',
+    ttsEnabled: settings.ttsEnabled ?? false,
+    ttsAutoPlay: settings.ttsAutoPlay ?? false,
+    ttsApiEndpoint: settings.ttsApiEndpoint ?? 'https://api.xiaomimimo.com/v1',
+    ttsApiKey: '',
+    ttsDefaultVoiceId: settings.ttsDefaultVoiceId ?? '',
+    ttsVoiceProfiles: settings.ttsVoiceProfiles ?? [],
   };
 }
 
@@ -93,12 +118,15 @@ function mergeInitialValues(
   settings: Settings,
   previousValues: SettingsDialogValues,
   loadedApiKey: string,
-  apiKeyHydrated: boolean
+  apiKeyHydrated: boolean,
+  loadedTtsApiKey: string,
+  ttsApiKeyHydrated: boolean,
 ): SettingsDialogValues {
   const nextValues = buildInitialValues(settings);
   return {
     ...nextValues,
     apiKey: apiKeyHydrated ? previousValues.apiKey : (loadedApiKey || previousValues.apiKey),
+    ttsApiKey: ttsApiKeyHydrated ? previousValues.ttsApiKey : (loadedTtsApiKey || previousValues.ttsApiKey),
   };
 }
 
@@ -115,6 +143,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 export function SettingsDialog({
   initialSettings,
   loadedApiKey,
+  loadedTtsApiKey,
   fetchedModels,
   onFetchedModels,
   error,
@@ -132,6 +161,7 @@ export function SettingsDialog({
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showTtsApiKey, setShowTtsApiKey] = useState(false);
   const fetchRef = useRef(0);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hydratedRef = useRef(false);
@@ -139,19 +169,23 @@ export function SettingsDialog({
   const lastSavedKeyRef = useRef('');
 
   const apiKeyHydratedRef = useRef(false);
+  const ttsApiKeyHydratedRef = useRef(false);
 
   useEffect(() => {
     setValues((prev) => {
-      const nextValues = mergeInitialValues(initialSettings, prev, loadedApiKey, apiKeyHydratedRef.current);
+      const nextValues = mergeInitialValues(initialSettings, prev, loadedApiKey, apiKeyHydratedRef.current, loadedTtsApiKey, ttsApiKeyHydratedRef.current);
       lastSavedKeyRef.current = buildSaveKey(nextValues);
       return nextValues;
     });
     if (!apiKeyHydratedRef.current && loadedApiKey) {
       apiKeyHydratedRef.current = true;
     }
+    if (!ttsApiKeyHydratedRef.current && loadedTtsApiKey) {
+      ttsApiKeyHydratedRef.current = true;
+    }
     hydratedRef.current = true;
     setIsRecordingHotkey(false);
-  }, [initialSettings, loadedApiKey]);
+  }, [initialSettings, loadedApiKey, loadedTtsApiKey]);
 
   const saveKey = useMemo(() => buildSaveKey(values), [values]);
   const modelSuggestions = useMemo(() => {
@@ -501,6 +535,193 @@ export function SettingsDialog({
             {`⚠ ${error}`}
           </p>
         )}
+
+        <div className="settings-section">
+          <div className="settings-section-title">{t(locale, 'section_tts')}</div>
+          <div className="settings-row">
+            <div className="settings-row-left">
+              <span className="settings-row-label">{t(locale, 'label_tts_enabled')}</span>
+              <span className="settings-row-desc">{t(locale, 'desc_tts_enabled')}</span>
+            </div>
+            <Toggle checked={values.ttsEnabled} onChange={(value) => set('ttsEnabled', value)} />
+          </div>
+          {values.ttsEnabled && (
+            <>
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-row-label">{t(locale, 'label_tts_auto_play')}</span>
+                  <span className="settings-row-desc">{t(locale, 'desc_tts_auto_play')}</span>
+                </div>
+                <Toggle checked={values.ttsAutoPlay} onChange={(value) => set('ttsAutoPlay', value)} />
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-row-label">{t(locale, 'label_tts_endpoint')}</span>
+                  <span className="settings-row-desc">{t(locale, 'desc_tts_endpoint')}</span>
+                </div>
+                <input
+                  className="settings-input"
+                  placeholder="https://api.xiaomimimo.com/v1"
+                  type="text"
+                  value={values.ttsApiEndpoint}
+                  onChange={(e) => set('ttsApiEndpoint', e.target.value)}
+                />
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-row-label">{t(locale, 'label_tts_api_key')}</span>
+                </div>
+                <div className="settings-input-eye-wrap">
+                  <input
+                    className="settings-input settings-input-eye"
+                    placeholder="TTS API Key"
+                    type={showTtsApiKey ? 'text' : 'password'}
+                    value={values.ttsApiKey}
+                    onChange={(e) => setValues((prev) => ({ ...prev, ttsApiKey: e.target.value }))}
+                    onBlur={() => {
+                      if (values.ttsApiKey.trim()) void onSave(values).catch(() => {});
+                    }}
+                  />
+                  {values.ttsApiKey && (
+                    <button
+                      aria-label={showTtsApiKey ? 'Hide TTS API key' : 'Show TTS API key'}
+                      className="eye-btn"
+                      tabIndex={-1}
+                      type="button"
+                      onClick={() => setShowTtsApiKey((v) => !v)}
+                    >
+                      {showTtsApiKey ? (
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                          <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                      ) : (
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="settings-voice-profiles">
+                <div className="settings-voice-profiles-header">
+                  <span className="settings-row-label">{t(locale, 'label_voice_profile')}</span>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    type="button"
+                    onClick={() => {
+                      const newProfile: VoiceProfile = {
+                        id: crypto.randomUUID(),
+                        name: '',
+                        type: 'preset',
+                        presetVoiceId: 'mimo_default',
+                        language: '',
+                        description: '',
+                      };
+                      set('ttsVoiceProfiles', [...values.ttsVoiceProfiles, newProfile]);
+                    }}
+                  >
+                    {t(locale, 'btn_add_voice')}
+                  </button>
+                </div>
+                {values.ttsVoiceProfiles.map((profile, index) => (
+                  <div key={profile.id} className="settings-voice-profile-card">
+                    <div className="settings-voice-profile-row">
+                      <input
+                        className="settings-input settings-voice-name-input"
+                        placeholder={t(locale, 'label_voice_name')}
+                        type="text"
+                        value={profile.name}
+                        onChange={(e) => {
+                          const next = [...values.ttsVoiceProfiles];
+                          next[index] = { ...profile, name: e.target.value };
+                          set('ttsVoiceProfiles', next);
+                        }}
+                      />
+                      <select
+                        className="settings-select settings-voice-type-select"
+                        value={profile.type}
+                        onChange={(e) => {
+                          const next = [...values.ttsVoiceProfiles];
+                          next[index] = { ...profile, type: e.target.value as VoiceProfileType };
+                          set('ttsVoiceProfiles', next);
+                        }}
+                      >
+                        <option value="preset">{t(locale, 'option_preset')}</option>
+                        <option value="clone">{t(locale, 'option_clone')}</option>
+                      </select>
+                      <button
+                        className="btn btn-ghost btn-sm btn-danger"
+                        type="button"
+                        onClick={() => {
+                          const next = values.ttsVoiceProfiles.filter((_, i) => i !== index);
+                          set('ttsVoiceProfiles', next);
+                          if (values.ttsDefaultVoiceId === profile.id) {
+                            set('ttsDefaultVoiceId', next[0]?.id ?? '');
+                          }
+                        }}
+                      >
+                        {t(locale, 'btn_remove_voice')}
+                      </button>
+                    </div>
+                    {profile.type === 'preset' ? (
+                      <div className="settings-voice-profile-detail">
+                        <select
+                          className="settings-select"
+                          value={profile.presetVoiceId ?? 'mimo_default'}
+                          onChange={(e) => {
+                            const next = [...values.ttsVoiceProfiles];
+                            next[index] = { ...profile, presetVoiceId: e.target.value };
+                            set('ttsVoiceProfiles', next);
+                          }}
+                        >
+                          {PRESET_VOICE_OPTIONS.map((v) => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="settings-voice-profile-detail">
+                        <div className="settings-voice-audio-row">
+                          <span className="settings-voice-audio-path" title={profile.referenceAudioPath ?? ''}>
+                            {profile.referenceAudioPath || t(locale, 'label_reference_audio')}
+                          </span>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            type="button"
+                            onClick={async () => {
+                              const path = await pickAudioFile();
+                              if (path) {
+                                const next = [...values.ttsVoiceProfiles];
+                                next[index] = { ...profile, referenceAudioPath: path };
+                                set('ttsVoiceProfiles', next);
+                              }
+                            }}
+                          >
+                            {t(locale, 'btn_browse')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <label className="settings-voice-default-radio">
+                      <input
+                        type="radio"
+                        name="defaultVoice"
+                        checked={values.ttsDefaultVoiceId === profile.id}
+                        onChange={() => set('ttsDefaultVoiceId', profile.id)}
+                      />
+                      <span className="settings-row-desc">Default</span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

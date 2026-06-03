@@ -376,6 +376,8 @@ pub struct LoadSettingsResponse {
     pub settings: Option<AppSettings>,
     pub api_key_present: bool,
     pub api_key: String,
+    pub tts_api_key_present: bool,
+    pub tts_api_key: String,
 }
 
 #[derive(Serialize)]
@@ -446,11 +448,18 @@ pub fn load_settings() -> Result<LoadSettingsResponse, String> {
         .ok()
         .flatten()
         .unwrap_or_default();
+    let tts_api_key_present = secure_store::has_tts_api_key().unwrap_or(false);
+    let tts_api_key = secure_store::load_tts_api_key()
+        .ok()
+        .flatten()
+        .unwrap_or_default();
 
     Ok(LoadSettingsResponse {
         settings,
         api_key_present,
         api_key,
+        tts_api_key_present,
+        tts_api_key,
     })
 }
 
@@ -517,6 +526,192 @@ pub fn set_autostart_enabled(app: tauri::AppHandle, enable: bool) -> Result<(), 
     }
 }
 
+#[tauri::command]
+pub fn save_tts_api_key_command(api_key: String) -> Result<(), String> {
+    if api_key.trim().is_empty() {
+        secure_store::delete_tts_api_key().map_err(|e| e.to_string())
+    } else {
+        secure_store::save_tts_api_key(&api_key).map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+pub fn load_tts_api_key() -> Result<String, String> {
+    Ok(secure_store::load_tts_api_key()
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default())
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct VoiceProfileParam {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub profile_type: String,
+    #[serde(default)]
+    pub preset_voice_id: String,
+    #[serde(default)]
+    pub reference_audio_path: String,
+}
+
+#[tauri::command]
+pub async fn synthesize_speech(
+    text: String,
+    voice_profile: VoiceProfileParam,
+    tts_api_endpoint: String,
+    tts_api_key: String,
+) -> Result<String, String> {
+    let key = if tts_api_key.trim().is_empty() {
+        secure_store::load_tts_api_key()
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "No TTS API key stored. Enter one in Settings.".to_string())?
+    } else {
+        tts_api_key
+    };
+
+    let endpoint = tts_api_endpoint.trim_end_matches('/');
+    let url = format!("{endpoint}/chat/completions");
+
+    let (model, voice_value) = match voice_profile.profile_type.as_str() {
+        "clone" => {
+            let audio_path = &voice_profile.reference_audio_path;
+            if audio_path.is_empty() {
+                return Err("No reference audio path configured for clone voice.".to_string());
+            }
+            let audio_bytes = std::fs::read(audio_path)
+                .map_err(|e| format!("Failed to read reference audio: {e}"))?;
+            let audio_b64 = base64_encode(&audio_bytes);
+            let mime = guess_mime_type(audio_path);
+            ("mimo-v2.5-tts-voiceclone", format!("data:{mime};base64,{audio_b64}"))
+        }
+        _ => {
+            let voice_id = if voice_profile.preset_voice_id.is_empty() {
+                "mimo_default".to_string()
+            } else {
+                voice_profile.preset_voice_id.clone()
+            };
+            ("mimo-v2.5-tts", voice_id)
+        }
+    };
+
+    #[derive(Serialize)]
+    struct AudioConfig {
+        format: String,
+        voice: String,
+    }
+    #[derive(Serialize)]
+    struct Message {
+        role: String,
+        content: String,
+    }
+    #[derive(Serialize)]
+    struct TtsRequest {
+        model: String,
+        messages: Vec<Message>,
+        audio: AudioConfig,
+    }
+
+    let request = TtsRequest {
+        model: model.to_string(),
+        messages: vec![Message {
+            role: "assistant".into(),
+            content: text,
+        }],
+        audio: AudioConfig {
+            format: "wav".into(),
+            voice: voice_value,
+        },
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .post(&url)
+        .header("api-key", &key)
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("TTS HTTP {status}: {}", &body[..body.len().min(500)]));
+    }
+
+    #[derive(Deserialize)]
+    struct AudioData {
+        data: String,
+    }
+    #[derive(Deserialize)]
+    struct TtsMessage {
+        audio: AudioData,
+    }
+    #[derive(Deserialize)]
+    struct TtsChoice {
+        message: TtsMessage,
+    }
+    #[derive(Deserialize)]
+    struct TtsResponse {
+        choices: Vec<TtsChoice>,
+    }
+
+    let tts_resp: TtsResponse = resp.json().await.map_err(|e| e.to_string())?;
+    let audio_b64 = tts_resp
+        .choices
+        .into_iter()
+        .next()
+        .map(|c| c.message.audio.data)
+        .ok_or_else(|| "TTS API returned no audio data.".to_string())?;
+
+    Ok(audio_b64)
+}
+
+fn base64_encode(data: &[u8]) -> String {
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut result = String::new();
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        result.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
+        result.push(CHARS[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            result.push(CHARS[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            result.push('=');
+        }
+        if chunk.len() > 2 {
+            result.push(CHARS[(triple & 0x3F) as usize] as char);
+        } else {
+            result.push('=');
+        }
+    }
+    result
+}
+
+fn guess_mime_type(path: &str) -> &str {
+    let lower = path.to_lowercase();
+    if lower.ends_with(".wav") {
+        "audio/wav"
+    } else if lower.ends_with(".mp3") {
+        "audio/mpeg"
+    } else if lower.ends_with(".ogg") {
+        "audio/ogg"
+    } else if lower.ends_with(".flac") {
+        "audio/flac"
+    } else if lower.ends_with(".m4a") {
+        "audio/mp4"
+    } else {
+        "audio/wav"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::save_settings_transaction;
@@ -539,6 +734,11 @@ mod tests {
             auto_detect_zh_en_direction: false,
             dismissed_update: "".into(),
             proxy_url: "".into(),
+            tts_enabled: false,
+            tts_auto_play: false,
+            tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
+            tts_default_voice_id: "".into(),
+            tts_voice_profiles: vec![],
         }
     }
 

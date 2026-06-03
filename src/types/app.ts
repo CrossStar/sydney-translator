@@ -5,6 +5,17 @@ export type CloseButtonAction = 'ask' | 'hide' | 'exit';
 export type TranslationProvider = 'ai' | 'bing' | 'google';
 export type ThemePreset = 'light' | 'dark' | 'absolutely-light' | 'absolutely-dark';
 export type UpdateDismiss = 'never' | string; // 'never' = ignore all, semver = ignore until next
+export type VoiceProfileType = 'preset' | 'clone';
+
+export interface VoiceProfile {
+  id: string;
+  name: string;
+  type: VoiceProfileType;
+  presetVoiceId?: string;
+  referenceAudioPath?: string;
+  language?: string;
+  description?: string;
+}
 
 export interface Settings {
   baseUrl: string;
@@ -22,6 +33,12 @@ export interface Settings {
   autoDetectZhEnDirection: boolean;
   dismissedUpdate: string; // '' = none dismissed, semver = that version dismissed
   proxyUrl: string;
+  ttsEnabled: boolean;
+  ttsAutoPlay: boolean;
+  ttsApiEndpoint: string;
+  ttsApiKeyPresent: boolean;
+  ttsDefaultVoiceId: string;
+  ttsVoiceProfiles: VoiceProfile[];
 }
 
 export interface TranslationState {

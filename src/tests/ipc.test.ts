@@ -21,7 +21,9 @@ it('preserves api key presence when only the secret exists', async () => {
   invokeMock.mockResolvedValueOnce({
     settings: null,
     api_key_present: true,
-    api_key: 'sk-abcdefgh'
+    api_key: 'sk-abcdefgh',
+    tts_api_key_present: false,
+    tts_api_key: ''
   });
 
   await expect(loadSettings()).resolves.toEqual({
@@ -40,9 +42,16 @@ it('preserves api key presence when only the secret exists', async () => {
       customCss: '',
       autoDetectZhEnDirection: false,
       dismissedUpdate: '',
-      proxyUrl: ''
+      proxyUrl: '',
+      ttsEnabled: false,
+      ttsAutoPlay: false,
+      ttsApiEndpoint: 'https://api.xiaomimimo.com/v1',
+      ttsApiKeyPresent: false,
+      ttsDefaultVoiceId: '',
+      ttsVoiceProfiles: [],
     },
-    apiKey: 'sk-abcdefgh'
+    apiKey: 'sk-abcdefgh',
+    ttsApiKey: ''
   });
 });
 
@@ -65,7 +74,9 @@ it('maps legacy claude preset to absolutely dark on load', async () => {
       proxy_url: ''
     },
     api_key_present: false,
-    api_key: ''
+    api_key: '',
+    tts_api_key_present: false,
+    tts_api_key: ''
   });
 
   await expect(loadSettings()).resolves.toEqual({
@@ -84,8 +95,15 @@ it('maps legacy claude preset to absolutely dark on load', async () => {
       customCss: '',
       autoDetectZhEnDirection: false,
       dismissedUpdate: '',
-      proxyUrl: ''
+      proxyUrl: '',
+      ttsEnabled: false,
+      ttsAutoPlay: false,
+      ttsApiEndpoint: 'https://api.xiaomimimo.com/v1',
+      ttsApiKeyPresent: false,
+      ttsDefaultVoiceId: '',
+      ttsVoiceProfiles: [],
     },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
 });

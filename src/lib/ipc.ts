@@ -33,6 +33,16 @@ export interface UpdateInfo {
   hasUpdate: boolean;
 }
 
+interface PersistedVoiceProfile {
+  id: string;
+  name: string;
+  type: string;
+  preset_voice_id?: string;
+  reference_audio_path?: string;
+  language?: string;
+  description?: string;
+}
+
 interface PersistedSettings {
   base_url: string;
   model: string;
@@ -48,6 +58,11 @@ interface PersistedSettings {
   auto_detect_zh_en_direction?: boolean;
   dismissed_update?: string;
   proxy_url?: string;
+  tts_enabled?: boolean;
+  tts_auto_play?: boolean;
+  tts_api_endpoint?: string;
+  tts_default_voice_id?: string;
+  tts_voice_profiles?: PersistedVoiceProfile[];
 }
 
 function normalizeThemePreset(themePreset?: string): Settings['themePreset'] {
@@ -81,6 +96,20 @@ function fromPersistedSettings(settings: PersistedSettings, apiKeyPresent: boole
     autoDetectZhEnDirection: settings.auto_detect_zh_en_direction ?? false,
     dismissedUpdate: settings.dismissed_update ?? '',
     proxyUrl: settings.proxy_url ?? '',
+    ttsEnabled: settings.tts_enabled ?? false,
+    ttsAutoPlay: settings.tts_auto_play ?? false,
+    ttsApiEndpoint: settings.tts_api_endpoint ?? 'https://api.xiaomimimo.com/v1',
+    ttsApiKeyPresent: false,
+    ttsDefaultVoiceId: settings.tts_default_voice_id ?? '',
+    ttsVoiceProfiles: (settings.tts_voice_profiles ?? []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      type: p.type as Settings['ttsVoiceProfiles'][number]['type'],
+      presetVoiceId: p.preset_voice_id,
+      referenceAudioPath: p.reference_audio_path,
+      language: p.language,
+      description: p.description,
+    })),
   };
 }
 
@@ -100,22 +129,39 @@ function toPersistedSettings(settings: Settings): PersistedSettings {
     auto_detect_zh_en_direction: settings.autoDetectZhEnDirection,
     dismissed_update: settings.dismissedUpdate,
     proxy_url: settings.proxyUrl,
+    tts_enabled: settings.ttsEnabled,
+    tts_auto_play: settings.ttsAutoPlay,
+    tts_api_endpoint: settings.ttsApiEndpoint,
+    tts_default_voice_id: settings.ttsDefaultVoiceId,
+    tts_voice_profiles: settings.ttsVoiceProfiles.map((p) => ({
+      id: p.id,
+      name: p.name,
+      type: p.type,
+      preset_voice_id: p.presetVoiceId ?? '',
+      reference_audio_path: p.referenceAudioPath ?? '',
+      language: p.language ?? '',
+      description: p.description ?? '',
+    })),
   };
 }
 
-export async function loadSettings(): Promise<{ settings: Settings; apiKey: string } | null> {
+export async function loadSettings(): Promise<{ settings: Settings; apiKey: string; ttsApiKey: string } | null> {
   if (!isTauri()) return null;
   const persisted = await invoke<{
     settings: PersistedSettings | null;
     api_key_present: boolean;
     api_key: string;
+    tts_api_key_present: boolean;
+    tts_api_key: string;
   }>('load_settings');
 
   const settings = persisted.settings
     ? fromPersistedSettings(persisted.settings, persisted.api_key_present)
     : { ...createInitialState().settings, apiKeyPresent: persisted.api_key_present };
 
-  return { settings, apiKey: persisted.api_key };
+  settings.ttsApiKeyPresent = persisted.tts_api_key_present;
+
+  return { settings, apiKey: persisted.api_key, ttsApiKey: persisted.tts_api_key };
 }
 
 export async function loadApiKey(): Promise<string | null> {
@@ -239,4 +285,53 @@ export async function listenToHelperEvents(
 
 export async function openUrl(url: string): Promise<void> {
   window.open(url, '_blank');
+}
+
+export interface VoiceProfileParam {
+  id: string;
+  name: string;
+  type: 'preset' | 'clone';
+  presetVoiceId?: string;
+  referenceAudioPath?: string;
+}
+
+export async function synthesizeSpeech(
+  text: string,
+  voiceProfile: VoiceProfileParam,
+  ttsApiEndpoint: string,
+  ttsApiKey: string,
+): Promise<string> {
+  if (!isTauri()) throw new Error('Not running in Tauri.');
+  return invoke<string>('synthesize_speech', {
+    text,
+    voiceProfile: {
+      id: voiceProfile.id,
+      name: voiceProfile.name,
+      type: voiceProfile.type,
+      preset_voice_id: voiceProfile.presetVoiceId ?? '',
+      reference_audio_path: voiceProfile.referenceAudioPath ?? '',
+    },
+    ttsApiEndpoint,
+    ttsApiKey,
+  });
+}
+
+export async function saveTtsApiKey(apiKey: string): Promise<void> {
+  if (!isTauri()) throw new Error('Not running in Tauri.');
+  await invoke<void>('save_tts_api_key_command', { apiKey });
+}
+
+export async function loadTtsApiKey(): Promise<string> {
+  if (!isTauri()) return '';
+  return invoke<string>('load_tts_api_key');
+}
+
+export async function pickAudioFile(): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { open } = await import('@tauri-apps/plugin-dialog');
+  const selected = await open({
+    multiple: false,
+    filters: [{ name: 'Audio', extensions: ['wav', 'mp3', 'ogg', 'flac', 'm4a'] }],
+  });
+  return selected ?? null;
 }

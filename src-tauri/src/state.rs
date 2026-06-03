@@ -8,6 +8,22 @@ use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VoiceProfileConfig {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub profile_type: String,
+    #[serde(default)]
+    pub preset_voice_id: String,
+    #[serde(default)]
+    pub reference_audio_path: String,
+    #[serde(default)]
+    pub language: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppSettings {
     pub base_url: String,
     pub model: String,
@@ -31,6 +47,16 @@ pub struct AppSettings {
     pub dismissed_update: String,
     #[serde(default)]
     pub proxy_url: String,
+    #[serde(default)]
+    pub tts_enabled: bool,
+    #[serde(default)]
+    pub tts_auto_play: bool,
+    #[serde(default = "default_tts_api_endpoint")]
+    pub tts_api_endpoint: String,
+    #[serde(default)]
+    pub tts_default_voice_id: String,
+    #[serde(default)]
+    pub tts_voice_profiles: Vec<VoiceProfileConfig>,
 }
 
 fn default_close_button_action() -> String {
@@ -47,6 +73,10 @@ fn default_translation_provider() -> String {
 
 fn default_theme_preset() -> String {
     "light".to_string()
+}
+
+fn default_tts_api_endpoint() -> String {
+    "https://api.xiaomimimo.com/v1".to_string()
 }
 
 fn normalize_theme_preset(theme_preset: &str) -> String {
@@ -178,6 +208,11 @@ mod tests {
             auto_detect_zh_en_direction: false,
             dismissed_update: "".into(),
             proxy_url: "".into(),
+            tts_enabled: false,
+            tts_auto_play: false,
+            tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
+            tts_default_voice_id: "".into(),
+            tts_voice_profiles: vec![],
         }
     }
 

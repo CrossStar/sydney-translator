@@ -26,6 +26,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -60,7 +61,10 @@ pub fn run() {
             commands::fetch_models,
             commands::test_connection,
             commands::translate,
-            commands::check_for_update
+            commands::check_for_update,
+            commands::save_tts_api_key_command,
+            commands::load_tts_api_key,
+            commands::synthesize_speech
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
