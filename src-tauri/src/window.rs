@@ -11,7 +11,7 @@ pub fn show_centered(app: &tauri::AppHandle) -> Result<(), String> {
     window.set_focus().map_err(|err| err.to_string())?;
     // Only force a reload the first time we surface the hidden window in dev.
     // Reloading on every helper-triggered show drops in-flight selection events.
-    #[cfg(dev)]
+    #[cfg(debug_assertions)]
     if !was_visible {
         window
             .eval("window.location.reload()")

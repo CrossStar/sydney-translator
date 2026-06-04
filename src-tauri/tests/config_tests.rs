@@ -1,6 +1,8 @@
+use std::sync::Mutex;
+#[cfg(not(target_os = "windows"))]
+use translator_lib::commands::save_settings_with_api_key;
 use translator_lib::state::AppSettings;
 use translator_lib::state::{load_settings, save_settings};
-use std::sync::Mutex;
 
 static TEST_LOCK: Mutex<()> = Mutex::new(());
 
@@ -40,6 +42,12 @@ fn settings_round_trip_keeps_non_secret_fields() {
         auto_detect_zh_en_direction: false,
         dismissed_update: "".into(),
         proxy_url: "".into(),
+        tts_enabled: false,
+        tts_provider: "mimo".into(),
+        tts_auto_play: false,
+        tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
+        tts_default_voice_id: "".into(),
+        tts_voice_profiles: vec![],
     };
 
     save_settings(&settings).expect("expected settings to save");
@@ -79,6 +87,12 @@ fn saving_legacy_claude_theme_preset_writes_absolutely_dark() {
         auto_detect_zh_en_direction: false,
         dismissed_update: "".into(),
         proxy_url: "".into(),
+        tts_enabled: false,
+        tts_provider: "mimo".into(),
+        tts_auto_play: false,
+        tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
+        tts_default_voice_id: "".into(),
+        tts_voice_profiles: vec![],
     };
 
     save_settings(&settings).expect("expected settings to save");
@@ -119,6 +133,12 @@ fn failed_secret_save_restores_previous_non_secret_settings() {
         auto_detect_zh_en_direction: false,
         dismissed_update: "".into(),
         proxy_url: "".into(),
+        tts_enabled: false,
+        tts_provider: "mimo".into(),
+        tts_auto_play: false,
+        tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
+        tts_default_voice_id: "".into(),
+        tts_voice_profiles: vec![],
     };
     let updated = AppSettings {
         base_url: "https://updated.example/v1".into(),
@@ -134,6 +154,12 @@ fn failed_secret_save_restores_previous_non_secret_settings() {
         custom_css: ":root { --accent: #c68b5c; }".into(),
         dismissed_update: "".into(),
         proxy_url: "http://127.0.0.1:7890".into(),
+        tts_enabled: false,
+        tts_provider: "mimo".into(),
+        tts_auto_play: false,
+        tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
+        tts_default_voice_id: "".into(),
+        tts_voice_profiles: vec![],
     };
 
     save_settings(&original).expect("expected original settings to save");

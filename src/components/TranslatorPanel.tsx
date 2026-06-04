@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MarkdownResult } from './MarkdownResult';
 import { t, type Locale } from '../lib/i18n';
+import type { VoiceProfile } from '../types/app';
 
 interface TranslatorPanelProps {
   input: string;
@@ -12,6 +13,13 @@ interface TranslatorPanelProps {
   onInputChange: (value: string) => void;
   onTranslate: () => void;
   onCopy: () => void;
+  ttsEnabled: boolean;
+  ttsSpeaking: boolean;
+  ttsError: string | null;
+  ttsVoiceProfiles: VoiceProfile[];
+  ttsDefaultVoiceId: string;
+  onSpeak: (text: string, profile: VoiceProfile) => void;
+  onStopTts: () => void;
 }
 
 export function TranslatorPanel({
@@ -23,17 +31,30 @@ export function TranslatorPanel({
   locale,
   onInputChange,
   onTranslate,
-  onCopy
+  onCopy,
+  ttsEnabled,
+  ttsSpeaking,
+  ttsError,
+  ttsVoiceProfiles,
+  ttsDefaultVoiceId,
+  onSpeak,
+  onStopTts,
 }: TranslatorPanelProps) {
   const [view, setView] = useState<'raw' | 'rendered'>('raw');
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
   const canTranslate = input.trim().length > 0 && !isLoading;
   const canCopy = output.trim().length > 0;
+
+  const effectiveVoiceId = selectedVoiceId || ttsDefaultVoiceId;
+  const selectedProfile = ttsVoiceProfiles.find((p) => p.id === effectiveVoiceId) ?? ttsVoiceProfiles[0];
+  const canSpeak = output.trim().length > 0 && ttsEnabled && !!selectedProfile && !ttsSpeaking;
 
   return (
     <div className="page">
       <div className="status-bar">
         {error && <span className="status-error">⚠ {error}</span>}
-        {!error && notice && <span className="status-notice">ℹ {notice}</span>}
+        {!error && ttsError && <span className="status-error">⚠ {ttsError}</span>}
+        {!error && !ttsError && notice && <span className="status-notice">ℹ {notice}</span>}
       </div>
       <div className="translator-layout">
         <div className="pane">
@@ -89,6 +110,49 @@ export function TranslatorPanel({
             <button className="btn btn-ghost" disabled={!canCopy} onClick={onCopy} type="button">
               {t(locale, 'btn_copy')}
             </button>
+            {ttsEnabled && ttsVoiceProfiles.length > 0 && (
+              <div className="tts-controls">
+                {ttsVoiceProfiles.length > 1 && (
+                  <select
+                    className="tts-voice-select"
+                    value={effectiveVoiceId}
+                    onChange={(e) => setSelectedVoiceId(e.target.value)}
+                  >
+                    {ttsVoiceProfiles.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name || p.presetVoiceId || p.id}</option>
+                    ))}
+                  </select>
+                )}
+                {ttsSpeaking ? (
+                  <button
+                    className="btn btn-ghost btn-tts btn-tts-stop"
+                    type="button"
+                    onClick={onStopTts}
+                    title={t(locale, 'btn_stop')}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="6" y="6" width="12" height="12" rx="1" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-ghost btn-tts btn-tts-speak"
+                    disabled={!canSpeak}
+                    type="button"
+                    onClick={() => {
+                      if (selectedProfile) onSpeak(output, selectedProfile);
+                    }}
+                    title={t(locale, 'btn_speak')}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div className="output-body">
             {isLoading && !output ? (

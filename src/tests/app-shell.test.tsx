@@ -41,7 +41,14 @@ const baseSettings = {
   customCss: '',
   autoDetectZhEnDirection: false,
   dismissedUpdate: '',
-  proxyUrl: ''
+  proxyUrl: '',
+  ttsEnabled: false,
+  ttsProvider: 'mimo' as const,
+  ttsAutoPlay: false,
+  ttsApiEndpoint: 'https://api.xiaomimimo.com/v1',
+  ttsApiKeyPresent: false,
+  ttsDefaultVoiceId: '',
+  ttsVoiceProfiles: [],
 };
 
 let helperEventListener: ((payload: { payload: HelperEvent }) => void) | null = null;
@@ -71,6 +78,10 @@ vi.mock('../lib/ipc', () => ({
   openUrl: vi.fn(async () => {}),
   reloadHelper: vi.fn(),
   saveSettingsWithApiKey: vi.fn(),
+  saveTtsApiKey: vi.fn(async () => {}),
+  loadTtsApiKey: vi.fn(async () => ''),
+  pickAudioFile: vi.fn(async () => null),
+  synthesizeSpeech: vi.fn(async () => ''),
   setAlwaysOnTop: vi.fn(),
   setAutostartEnabled: vi.fn(),
   startDraggingCurrentWindow: vi.fn(async () => {}),
@@ -177,7 +188,8 @@ it('hydrates the input when a selection helper event arrives', async () => {
 it('auto-translates selection text when valid settings are loaded', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
     settings: { ...baseSettings, targetLanguage: 'Chinese', selectionMode: 'auto-popup' },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
 
   render(<App />);
@@ -212,7 +224,8 @@ it('auto-switches to Chinese to English when enabled and the input is Chinese', 
       sourceLanguage: 'Japanese',
       targetLanguage: 'Korean'
     },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
 
   render(<App />);
@@ -248,7 +261,8 @@ it('auto-switches to English to Chinese when enabled and the input is English', 
       sourceLanguage: 'Japanese',
       targetLanguage: 'Korean'
     },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
 
   render(<App />);
@@ -284,7 +298,8 @@ it('preserves manually configured direction when zh-en auto-switch is disabled',
       sourceLanguage: 'Japanese',
       targetLanguage: 'Korean'
     },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
 
   render(<App />);
@@ -319,7 +334,8 @@ it('applies the saved theme preset and custom css on load', async () => {
       themePreset: 'absolutely-dark',
       customCss: ':root { --accent: rgb(1, 2, 3); }'
     },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
 
   render(<App />);
@@ -407,7 +423,8 @@ it('shows the translation placeholder area', () => {
 it('renders streamed output after translating with valid settings', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
     settings: { ...baseSettings, targetLanguage: 'Chinese' },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
   mockedTranslateText.mockImplementationOnce(async () => {
     pushTranslationChunk('bon');
@@ -491,7 +508,14 @@ it('auto-saves settings when the user edits fields', async () => {
         customCss: '',
         autoDetectZhEnDirection: false,
         dismissedUpdate: '',
-        proxyUrl: ''
+        proxyUrl: '',
+        ttsEnabled: false,
+        ttsProvider: 'mimo' as const,
+        ttsAutoPlay: false,
+        ttsApiEndpoint: 'https://api.xiaomimimo.com/v1',
+        ttsApiKeyPresent: false,
+        ttsDefaultVoiceId: '',
+        ttsVoiceProfiles: [],
       },
       apiKey: '',
       clearApiKey: false
@@ -502,7 +526,8 @@ it('auto-saves settings when the user edits fields', async () => {
 it('keeps a manually entered model after refresh and saves the typed value', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
     settings: baseSettings,
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
   mockedFetchModels.mockResolvedValueOnce(['gpt-5-mini', 'gpt-5']);
 
@@ -599,7 +624,8 @@ it('persists close action when remember is checked', async () => {
 it('skips close prompt when action is already hide', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
     settings: { ...baseSettings, closeButtonAction: 'hide' },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
 
   render(<App />);
@@ -616,7 +642,8 @@ it('skips close prompt when action is already hide', async () => {
 it('skips close prompt and exits when action is already exit', async () => {
   mockedLoadSettings.mockResolvedValueOnce({
     settings: { ...baseSettings, closeButtonAction: 'exit' },
-    apiKey: ''
+    apiKey: '',
+    ttsApiKey: ''
   });
 
   render(<App />);

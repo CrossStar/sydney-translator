@@ -19,6 +19,7 @@
         { "url": "http://*/**" }
       ]
     },
-    "http:allow-fetch-send"
+    "http:allow-fetch-send",
+    "dialog:allow-open"
   ]
 }
