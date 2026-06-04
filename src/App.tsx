@@ -209,6 +209,7 @@ export default function App() {
       dismissedUpdate: previous.dismissedUpdate,
       proxyUrl: values.proxyUrl,
       ttsEnabled: values.ttsEnabled,
+      ttsProvider: values.ttsProvider,
       ttsAutoPlay: values.ttsAutoPlay,
       ttsApiEndpoint: values.ttsApiEndpoint,
       ttsApiKeyPresent: previous.ttsApiKeyPresent || Boolean(values.ttsApiKey?.trim()),
@@ -297,6 +298,7 @@ export default function App() {
     setTtsSpeaking(true);
     try {
       await speak(text, voiceProfile, {
+        ttsProvider: settingsRef.current.ttsProvider,
         ttsApiEndpoint: settingsRef.current.ttsApiEndpoint,
         ttsApiKey,
       });

@@ -22,6 +22,7 @@ describe('createInitialState', () => {
       dismissedUpdate: '',
       proxyUrl: '',
       ttsEnabled: false,
+      ttsProvider: 'mimo',
       ttsAutoPlay: false,
       ttsApiEndpoint: 'https://api.xiaomimimo.com/v1',
       ttsApiKeyPresent: false,

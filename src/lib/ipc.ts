@@ -59,6 +59,7 @@ interface PersistedSettings {
   dismissed_update?: string;
   proxy_url?: string;
   tts_enabled?: boolean;
+  tts_provider?: string;
   tts_auto_play?: boolean;
   tts_api_endpoint?: string;
   tts_default_voice_id?: string;
@@ -97,6 +98,7 @@ function fromPersistedSettings(settings: PersistedSettings, apiKeyPresent: boole
     dismissedUpdate: settings.dismissed_update ?? '',
     proxyUrl: settings.proxy_url ?? '',
     ttsEnabled: settings.tts_enabled ?? false,
+    ttsProvider: (settings.tts_provider as Settings['ttsProvider']) ?? 'mimo',
     ttsAutoPlay: settings.tts_auto_play ?? false,
     ttsApiEndpoint: settings.tts_api_endpoint ?? 'https://api.xiaomimimo.com/v1',
     ttsApiKeyPresent: false,
@@ -130,6 +132,7 @@ function toPersistedSettings(settings: Settings): PersistedSettings {
     dismissed_update: settings.dismissedUpdate,
     proxy_url: settings.proxyUrl,
     tts_enabled: settings.ttsEnabled,
+    tts_provider: settings.ttsProvider,
     tts_auto_play: settings.ttsAutoPlay,
     tts_api_endpoint: settings.ttsApiEndpoint,
     tts_default_voice_id: settings.ttsDefaultVoiceId,
@@ -298,6 +301,7 @@ export interface VoiceProfileParam {
 export async function synthesizeSpeech(
   text: string,
   voiceProfile: VoiceProfileParam,
+  ttsProvider: string,
   ttsApiEndpoint: string,
   ttsApiKey: string,
 ): Promise<string> {
@@ -311,6 +315,7 @@ export async function synthesizeSpeech(
       preset_voice_id: voiceProfile.presetVoiceId ?? '',
       reference_audio_path: voiceProfile.referenceAudioPath ?? '',
     },
+    ttsProvider,
     ttsApiEndpoint,
     ttsApiKey,
   });

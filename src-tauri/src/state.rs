@@ -49,6 +49,8 @@ pub struct AppSettings {
     pub proxy_url: String,
     #[serde(default)]
     pub tts_enabled: bool,
+    #[serde(default = "default_tts_provider")]
+    pub tts_provider: String,
     #[serde(default)]
     pub tts_auto_play: bool,
     #[serde(default = "default_tts_api_endpoint")]
@@ -77,6 +79,10 @@ fn default_theme_preset() -> String {
 
 fn default_tts_api_endpoint() -> String {
     "https://api.xiaomimimo.com/v1".to_string()
+}
+
+fn default_tts_provider() -> String {
+    "mimo".to_string()
 }
 
 fn normalize_theme_preset(theme_preset: &str) -> String {
@@ -209,6 +215,7 @@ mod tests {
             dismissed_update: "".into(),
             proxy_url: "".into(),
             tts_enabled: false,
+            tts_provider: "mimo".into(),
             tts_auto_play: false,
             tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
             tts_default_voice_id: "".into(),

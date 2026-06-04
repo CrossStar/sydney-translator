@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { fetchModels as fetchModelsIpc, testConnection as testConnectionIpc, pickAudioFile } from '../lib/ipc';
 import { formatHotkeyForDisplay, hotkeyFromKeyboardEvent } from '../lib/hotkey';
 import { t, type Locale } from '../lib/i18n';
-import type { CloseButtonAction, SelectionMode, Settings, ThemePreset, TranslationProvider, UiLanguage, VoiceProfile, VoiceProfileType } from '../types/app';
+import type { CloseButtonAction, SelectionMode, Settings, ThemePreset, TranslationProvider, TtsProvider, UiLanguage, VoiceProfile, VoiceProfileType } from '../types/app';
 
 export interface SettingsDialogValues {
   baseUrl: string;
@@ -20,6 +20,7 @@ export interface SettingsDialogValues {
   autoDetectZhEnDirection: boolean;
   proxyUrl: string;
   ttsEnabled: boolean;
+  ttsProvider: TtsProvider;
   ttsAutoPlay: boolean;
   ttsApiEndpoint: string;
   ttsApiKey: string;
@@ -62,7 +63,7 @@ const LANGUAGES = [
   { value: 'Thai', label: 'Thai (ภาษาไทย)' }
 ];
 
-const PRESET_VOICE_OPTIONS = [
+const MIMO_PRESET_VOICES = [
   { id: 'mimo_default', name: 'MiMo Default' },
   { id: '冰糖', name: '冰糖 (Bingtang)' },
   { id: '茉莉', name: '茉莉 (Moli)' },
@@ -72,6 +73,15 @@ const PRESET_VOICE_OPTIONS = [
   { id: 'Chloe', name: 'Chloe' },
   { id: 'Milo', name: 'Milo' },
   { id: 'Dean', name: 'Dean' },
+];
+
+const OPENAI_PRESET_VOICES = [
+  { id: 'alloy', name: 'Alloy' },
+  { id: 'echo', name: 'Echo' },
+  { id: 'fable', name: 'Fable' },
+  { id: 'onyx', name: 'Onyx' },
+  { id: 'nova', name: 'Nova' },
+  { id: 'shimmer', name: 'Shimmer' },
 ];
 
 const DEFAULT_MODELS = [
@@ -101,6 +111,7 @@ function buildInitialValues(settings: Settings): SettingsDialogValues {
     autoDetectZhEnDirection: settings.autoDetectZhEnDirection ?? false,
     proxyUrl: settings.proxyUrl ?? '',
     ttsEnabled: settings.ttsEnabled ?? false,
+    ttsProvider: settings.ttsProvider ?? 'mimo',
     ttsAutoPlay: settings.ttsAutoPlay ?? false,
     ttsApiEndpoint: settings.ttsApiEndpoint ?? 'https://api.xiaomimimo.com/v1',
     ttsApiKey: '',
@@ -110,7 +121,7 @@ function buildInitialValues(settings: Settings): SettingsDialogValues {
 }
 
 function buildSaveKey(values: SettingsDialogValues): string {
-  const { apiKey: _apiKey, ...rest } = values;
+  const { apiKey: _apiKey, ttsApiKey: _ttsApiKey, ...rest } = values;
   return JSON.stringify(rest);
 }
 
@@ -549,6 +560,22 @@ export function SettingsDialog({
             <>
               <div className="settings-row">
                 <div className="settings-row-left">
+                  <span className="settings-row-label">{t(locale, 'label_tts_provider')}</span>
+                </div>
+                <select className="settings-select" value={values.ttsProvider} onChange={(e) => set('ttsProvider', e.target.value as TtsProvider)}>
+                  <option value="mimo">MiMo TTS</option>
+                  <option value="openai">{t(locale, 'option_tts_openai')}</option>
+                </select>
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-row-label">{t(locale, 'label_tts_auto_play')}</span>
+                  <span className="settings-row-desc">{t(locale, 'desc_tts_auto_play')}</span>
+                </div>
+                <Toggle checked={values.ttsAutoPlay} onChange={(value) => set('ttsAutoPlay', value)} />
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-left">
                   <span className="settings-row-label">{t(locale, 'label_tts_auto_play')}</span>
                   <span className="settings-row-desc">{t(locale, 'desc_tts_auto_play')}</span>
                 </div>
@@ -679,7 +706,7 @@ export function SettingsDialog({
                             set('ttsVoiceProfiles', next);
                           }}
                         >
-                          {PRESET_VOICE_OPTIONS.map((v) => (
+                          {(values.ttsProvider === 'openai' ? OPENAI_PRESET_VOICES : MIMO_PRESET_VOICES).map((v) => (
                             <option key={v.id} value={v.id}>{v.name}</option>
                           ))}
                         </select>

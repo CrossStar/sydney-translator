@@ -558,6 +558,7 @@ pub struct VoiceProfileParam {
 pub async fn synthesize_speech(
     text: String,
     voice_profile: VoiceProfileParam,
+    tts_provider: String,
     tts_api_endpoint: String,
     tts_api_key: String,
 ) -> Result<String, String> {
@@ -569,6 +570,18 @@ pub async fn synthesize_speech(
         tts_api_key
     };
 
+    match tts_provider.as_str() {
+        "openai" => synthesize_openai(&text, &voice_profile, &tts_api_endpoint, &key).await,
+        _ => synthesize_mimo(&text, &voice_profile, &tts_api_endpoint, &key).await,
+    }
+}
+
+async fn synthesize_mimo(
+    text: &str,
+    voice_profile: &VoiceProfileParam,
+    tts_api_endpoint: &str,
+    key: &str,
+) -> Result<String, String> {
     let endpoint = tts_api_endpoint.trim_end_matches('/');
     let url = format!("{endpoint}/chat/completions");
 
@@ -615,7 +628,7 @@ pub async fn synthesize_speech(
         model: model.to_string(),
         messages: vec![Message {
             role: "assistant".into(),
-            content: text,
+            content: text.to_string(),
         }],
         audio: AudioConfig {
             format: "wav".into(),
@@ -630,7 +643,7 @@ pub async fn synthesize_speech(
 
     let resp = client
         .post(&url)
-        .header("api-key", &key)
+        .header("api-key", key)
         .header("Content-Type", "application/json")
         .json(&request)
         .send()
@@ -669,6 +682,60 @@ pub async fn synthesize_speech(
         .ok_or_else(|| "TTS API returned no audio data.".to_string())?;
 
     Ok(audio_b64)
+}
+
+async fn synthesize_openai(
+    text: &str,
+    voice_profile: &VoiceProfileParam,
+    tts_api_endpoint: &str,
+    key: &str,
+) -> Result<String, String> {
+    let endpoint = tts_api_endpoint.trim_end_matches('/');
+    let url = format!("{endpoint}/v1/audio/speech");
+
+    let voice_id = if voice_profile.preset_voice_id.is_empty() {
+        "alloy".to_string()
+    } else {
+        voice_profile.preset_voice_id.clone()
+    };
+
+    #[derive(Serialize)]
+    struct OpenAiTtsRequest {
+        model: String,
+        voice: String,
+        input: String,
+        response_format: String,
+    }
+
+    let request = OpenAiTtsRequest {
+        model: "tts-1".into(),
+        voice: voice_id,
+        input: text.to_string(),
+        response_format: "wav".into(),
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {key}"))
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("TTS HTTP {status}: {}", &body[..body.len().min(500)]));
+    }
+
+    let audio_bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    Ok(base64_encode(&audio_bytes))
 }
 
 fn base64_encode(data: &[u8]) -> String {
@@ -735,6 +802,7 @@ mod tests {
             dismissed_update: "".into(),
             proxy_url: "".into(),
             tts_enabled: false,
+            tts_provider: "mimo".into(),
             tts_auto_play: false,
             tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
             tts_default_voice_id: "".into(),
