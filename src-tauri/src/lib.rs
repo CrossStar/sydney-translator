@@ -1,5 +1,6 @@
 use tauri::Manager;
 
+pub mod app_log;
 pub mod commands;
 pub mod helper;
 pub mod secure_store;
@@ -23,6 +24,8 @@ fn should_show_main_window_on_startup() -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    app_log::info("app starting");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
@@ -32,20 +35,26 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
+            app_log::info("tauri setup started");
             app.manage(helper::HelperProcessState::default());
             window::install_main_window_behavior(app.handle())
                 .map_err(Box::<dyn std::error::Error>::from)?;
             tray::build_tray(app.handle())?;
+            app_log::info("tray initialized");
             helper::spawn_helper(app.handle().clone()).map_err(|err| {
                 let message = format!("failed to start helper sidecar: {err}");
+                app_log::error(&message);
                 Box::<dyn std::error::Error>::from(message)
             })?;
+            app_log::info("helper sidecar initialized");
 
-            if should_show_main_window_on_startup() {
-                window::show_centered(app.handle())
-                    .map_err(Box::<dyn std::error::Error>::from)?;
+            let should_show_main_window = should_show_main_window_on_startup();
+            app_log::info(format!("startup window visible={should_show_main_window}"));
+            if should_show_main_window {
+                window::show_centered(app.handle()).map_err(Box::<dyn std::error::Error>::from)?;
             }
 
+            app_log::info("tauri setup completed");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -64,7 +73,8 @@ pub fn run() {
             commands::check_for_update,
             commands::save_tts_api_key_command,
             commands::load_tts_api_key,
-            commands::synthesize_speech
+            commands::synthesize_speech,
+            commands::get_log_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

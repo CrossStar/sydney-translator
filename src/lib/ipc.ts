@@ -290,6 +290,11 @@ export async function openUrl(url: string): Promise<void> {
   window.open(url, '_blank');
 }
 
+export async function getLogPath(): Promise<string> {
+  if (!isTauri()) return '';
+  return invoke<string>('get_log_path');
+}
+
 export interface VoiceProfileParam {
   id: string;
   name: string;

@@ -1,7 +1,8 @@
+use std::sync::Mutex;
+#[cfg(not(target_os = "windows"))]
+use translator_lib::commands::save_settings_with_api_key;
 use translator_lib::state::AppSettings;
 use translator_lib::state::{load_settings, save_settings};
-use translator_lib::commands::save_settings_with_api_key;
-use std::sync::Mutex;
 
 static TEST_LOCK: Mutex<()> = Mutex::new(());
 
