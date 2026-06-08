@@ -576,13 +576,6 @@ export function SettingsDialog({
               </div>
               <div className="settings-row">
                 <div className="settings-row-left">
-                  <span className="settings-row-label">{t(locale, 'label_tts_auto_play')}</span>
-                  <span className="settings-row-desc">{t(locale, 'desc_tts_auto_play')}</span>
-                </div>
-                <Toggle checked={values.ttsAutoPlay} onChange={(value) => set('ttsAutoPlay', value)} />
-              </div>
-              <div className="settings-row">
-                <div className="settings-row-left">
                   <span className="settings-row-label">{t(locale, 'label_tts_endpoint')}</span>
                   <span className="settings-row-desc">{t(locale, 'desc_tts_endpoint')}</span>
                 </div>

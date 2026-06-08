@@ -1,3 +1,4 @@
+use crate::app_log;
 use crate::secure_store;
 use crate::state;
 use crate::state::AppSettings;
