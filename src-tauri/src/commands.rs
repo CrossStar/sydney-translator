@@ -643,7 +643,10 @@ pub async fn synthesize_speech(
         text.len()
     ));
 
-    let key = if tts_api_key.trim().is_empty() {
+    // Edge TTS 不需要 API key
+    let key = if tts_provider == "edge" {
+        String::new()
+    } else if tts_api_key.trim().is_empty() {
         secure_store::load_tts_api_key()
             .map_err(|e| {
                 crate::app_log::error(format!("tts api key load failed: {e}"));
@@ -659,6 +662,7 @@ pub async fn synthesize_speech(
 
     let result = match tts_provider.as_str() {
         "openai" => synthesize_openai(&text, &voice_profile, &tts_api_endpoint, &key).await,
+        "edge" => synthesize_edge(&text, &voice_profile).await,
         _ => synthesize_mimo(&text, &voice_profile, &tts_api_endpoint, &key).await,
     };
 
@@ -827,6 +831,11 @@ async fn synthesize_openai(
     tts_api_endpoint: &str,
     key: &str,
 ) -> Result<String, String> {
+    if voice_profile.profile_type == "clone" {
+        crate::app_log::warn("tts openai does not support clone voice, falling back to preset");
+        return Err("OpenAI Compatible TTS does not support voice cloning. Please use a preset voice.".to_string());
+    }
+
     let endpoint = tts_api_endpoint.trim_end_matches('/');
     let url = if endpoint.ends_with("/v1") {
         format!("{endpoint}/audio/speech")
@@ -849,13 +858,13 @@ async fn synthesize_openai(
     }
 
     crate::app_log::info(format!(
-        "tts openai request model=tts-1 url={url} voice={voice_id}"
+        "tts openai request model=tts-1 url={url} voice={voice_id} format=mp3"
     ));
     let request = OpenAiTtsRequest {
         model: "tts-1".into(),
         voice: voice_id,
         input: text.to_string(),
-        response_format: "wav".into(),
+        response_format: "mp3".into(),
     };
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
@@ -895,6 +904,71 @@ async fn synthesize_openai(
         audio_bytes.len()
     ));
     Ok(base64_encode(&audio_bytes))
+}
+
+async fn synthesize_edge(
+    text: &str,
+    voice_profile: &VoiceProfileParam,
+) -> Result<String, String> {
+    use msedge_tts::tts::client::tokio_runtime::connect_async;
+    use msedge_tts::tts::SpeechConfig;
+    use tokio::time::{timeout, Duration};
+
+    if voice_profile.profile_type == "clone" {
+        crate::app_log::warn("tts edge does not support clone voice");
+        return Err("Edge TTS does not support voice cloning. Please use a preset voice.".to_string());
+    }
+
+    let voice_name = if voice_profile.preset_voice_id.is_empty() {
+        "zh-CN-XiaoxiaoNeural".to_string()
+    } else {
+        voice_profile.preset_voice_id.clone()
+    };
+
+    let config = SpeechConfig {
+        voice_name: voice_name.clone(),
+        audio_format: "audio-24khz-48kbitrate-mono-mp3".to_string(),
+        pitch: 0,
+        rate: 0,
+        volume: 0,
+    };
+
+    crate::app_log::info(format!("tts edge request voice={voice_name}"));
+
+    // 添加 30 秒超时
+    let connect_result = timeout(Duration::from_secs(30), connect_async()).await;
+    let mut client = match connect_result {
+        Ok(Ok(client)) => client,
+        Ok(Err(e)) => {
+            crate::app_log::error(format!("tts edge connect failed: {e}"));
+            return Err(format!("Edge TTS connect failed: {e}"));
+        }
+        Err(_) => {
+            crate::app_log::error("tts edge connect timeout (30s)");
+            return Err("Edge TTS connect timeout. Please check your network or use a proxy.".to_string());
+        }
+    };
+
+    // 添加 60 秒超时
+    let synthesize_result = timeout(Duration::from_secs(60), client.synthesize(text, &config)).await;
+    let audio = match synthesize_result {
+        Ok(Ok(audio)) => audio,
+        Ok(Err(e)) => {
+            crate::app_log::error(format!("tts edge synthesize failed: {e}"));
+            return Err(format!("Edge TTS synthesize failed: {e}"));
+        }
+        Err(_) => {
+            crate::app_log::error("tts edge synthesize timeout (60s)");
+            return Err("Edge TTS synthesize timeout. Please check your network or use a proxy.".to_string());
+        }
+    };
+
+    crate::app_log::info(format!(
+        "tts edge succeeded audio_bytes={}",
+        audio.audio_bytes.len()
+    ));
+
+    Ok(base64_encode(&audio.audio_bytes))
 }
 
 fn truncate_for_log(value: &str, max_len: usize) -> String {
@@ -965,7 +1039,7 @@ mod tests {
             dismissed_update: "".into(),
             proxy_url: "".into(),
             tts_enabled: false,
-            tts_provider: "mimo".into(),
+            tts_provider: "webspeech".into(),
             tts_auto_play: false,
             tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
             tts_default_voice_id: "".into(),

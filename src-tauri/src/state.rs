@@ -82,7 +82,7 @@ fn default_tts_api_endpoint() -> String {
 }
 
 fn default_tts_provider() -> String {
-    "mimo".to_string()
+    "webspeech".to_string()
 }
 
 fn normalize_theme_preset(theme_preset: &str) -> String {

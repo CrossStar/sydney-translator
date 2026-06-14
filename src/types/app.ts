@@ -6,7 +6,7 @@ export type TranslationProvider = 'ai' | 'bing' | 'google';
 export type ThemePreset = 'light' | 'dark' | 'absolutely-light' | 'absolutely-dark';
 export type UpdateDismiss = 'never' | string; // 'never' = ignore all, semver = ignore until next
 export type VoiceProfileType = 'preset' | 'clone';
-export type TtsProvider = 'mimo' | 'openai';
+export type TtsProvider = 'mimo' | 'openai' | 'webspeech';
 
 export interface VoiceProfile {
   id: string;
