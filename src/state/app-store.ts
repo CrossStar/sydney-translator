@@ -47,6 +47,13 @@ export function createInitialState(): {
       autoDetectZhEnDirection: false,
       dismissedUpdate: '',
       proxyUrl: '',
+      ttsEnabled: false,
+      ttsProvider: 'webspeech',
+      ttsAutoPlay: false,
+      ttsApiEndpoint: 'https://api.xiaomimimo.com/v1',
+      ttsApiKeyPresent: false,
+      ttsDefaultVoiceId: '',
+      ttsVoiceProfiles: [],
     },
     translation: {
       input: '',

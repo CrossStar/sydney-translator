@@ -15,6 +15,7 @@ import {
   openUrl,
   reloadHelper,
   saveSettingsWithApiKey,
+  saveTtsApiKey,
   setAlwaysOnTop,
   setAutostartEnabled,
   startDraggingCurrentWindow,
@@ -22,8 +23,9 @@ import {
   type UpdateInfo
 } from './lib/ipc';
 import { t, type Locale } from './lib/i18n';
+import { speak, stop as stopTts } from './lib/tts-client';
 import { createInitialState, reduceHelperEvent, resolveEffectiveLanguages, validateSettings } from './state/app-store';
-import type { CloseButtonAction, Settings, ThemePreset } from './types/app';
+import type { CloseButtonAction, Settings, ThemePreset, VoiceProfile } from './types/app';
 
 type Page = 'translate' | 'settings';
 
@@ -58,14 +60,19 @@ export default function App() {
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [autostartEnabled, setAutostartEnabledState] = useState(false);
   const [showClosePrompt, setShowClosePrompt] = useState(false);
+  const [ttsApiKey, setTtsApiKey] = useState('');
+  const [ttsSpeaking, setTtsSpeaking] = useState(false);
+  const [ttsError, setTtsError] = useState<string | null>(null);
   const [rememberCloseChoice, setRememberCloseChoice] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   const inputRef = useRef('');
+  const outputRef = useRef('');
   const noticeRef = useRef<string | null>(null);
   const settingsRef = useRef<Settings>(createInitialState().settings);
 
   useEffect(() => { inputRef.current = input; }, [input]);
+  useEffect(() => { outputRef.current = output; }, [output]);
   useEffect(() => { noticeRef.current = notice; }, [notice]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { applyThemePreset(settings.themePreset); }, [settings.themePreset]);
@@ -85,6 +92,7 @@ export default function App() {
           settingsRef.current = result.settings;
           setSettings(result.settings);
           setLoadedApiKey(result.apiKey);
+          setTtsApiKey(result.ttsApiKey);
         }
       } catch {
         if (!cancelled) setSettingsError('Unable to load settings.');
@@ -200,9 +208,22 @@ export default function App() {
       autoDetectZhEnDirection: values.autoDetectZhEnDirection,
       dismissedUpdate: previous.dismissedUpdate,
       proxyUrl: values.proxyUrl,
+      ttsEnabled: values.ttsEnabled,
+      ttsProvider: values.ttsProvider,
+      ttsAutoPlay: values.ttsAutoPlay,
+      ttsApiEndpoint: values.ttsApiEndpoint,
+      ttsApiKeyPresent: previous.ttsApiKeyPresent || Boolean(values.ttsApiKey?.trim()),
+      ttsDefaultVoiceId: values.ttsDefaultVoiceId,
+      ttsVoiceProfiles: values.ttsVoiceProfiles,
     };
 
     await persistSettings(requested, false, values.apiKey);
+
+    if (values.ttsApiKey?.trim()) {
+      await saveTtsApiKey(values.ttsApiKey.trim());
+      setTtsApiKey(values.ttsApiKey.trim());
+      setSettings((prev) => ({ ...prev, ttsApiKeyPresent: true }));
+    }
   }
 
   async function handleTranslate(textOverride?: string) {
@@ -219,12 +240,17 @@ export default function App() {
     setError(null);
     setNotice(null);
     setOutput('');
+    outputRef.current = '';
 
     let unsubChunks: (() => void) | null = null;
     try {
       unsubChunks = await listenToTranslationChunks((chunk) => {
         flushSync(() => {
-          setOutput((prev) => prev + chunk);
+          setOutput((prev) => {
+            const next = prev + chunk;
+            outputRef.current = next;
+            return next;
+          });
         });
       });
       await translateText(
@@ -243,6 +269,17 @@ export default function App() {
       unsubChunks?.();
       setIsLoading(false);
     }
+
+    // Auto-play TTS after translation completes
+    const finalOutput = outputRef.current;
+    if (finalOutput.trim() && settingsRef.current.ttsEnabled && settingsRef.current.ttsAutoPlay) {
+      const profiles = settingsRef.current.ttsVoiceProfiles;
+      const defaultId = settingsRef.current.ttsDefaultVoiceId;
+      const profile = profiles.find((p) => p.id === defaultId) ?? profiles[0];
+      if (profile) {
+        void handleSpeak(finalOutput, profile);
+      }
+    }
   }
 
   async function handleCopy() {
@@ -254,6 +291,27 @@ export default function App() {
     } catch {
       setError('Unable to copy translation.');
     }
+  }
+
+  async function handleSpeak(text: string, voiceProfile: VoiceProfile) {
+    setTtsError(null);
+    setTtsSpeaking(true);
+    try {
+      await speak(text, voiceProfile, {
+        ttsProvider: settingsRef.current.ttsProvider,
+        ttsApiEndpoint: settingsRef.current.ttsApiEndpoint,
+        ttsApiKey,
+      });
+    } catch (err) {
+      setTtsError(err instanceof Error ? err.message : 'TTS failed');
+    } finally {
+      setTtsSpeaking(false);
+    }
+  }
+
+  function handleStopTts() {
+    stopTts();
+    setTtsSpeaking(false);
   }
 
   async function applyCloseAction(action: CloseButtonAction, remember: boolean) {
@@ -348,10 +406,18 @@ export default function App() {
           onInputChange={(value) => { setNotice(null); setInput(value); }}
           onTranslate={handleTranslate}
           output={output}
+          ttsEnabled={settings.ttsEnabled}
+          ttsSpeaking={ttsSpeaking}
+          ttsError={ttsError}
+          ttsVoiceProfiles={settings.ttsVoiceProfiles}
+          ttsDefaultVoiceId={settings.ttsDefaultVoiceId}
+          onSpeak={handleSpeak}
+          onStopTts={handleStopTts}
         />
       ) : (
         <SettingsDialog
           loadedApiKey={loadedApiKey}
+          loadedTtsApiKey={ttsApiKey}
           autostartEnabled={autostartEnabled}
           error={settingsError}
           fetchedModels={fetchedModels}

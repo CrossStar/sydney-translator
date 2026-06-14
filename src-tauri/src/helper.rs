@@ -55,11 +55,13 @@ impl HelperConfig {
 }
 
 pub fn spawn_helper(app: tauri::AppHandle) -> Result<(), Box<dyn Error>> {
+    crate::app_log::info("loading helper config");
     let config = load_helper_config()?;
     spawn_helper_with_config(app, config)
 }
 
 pub fn restart_helper(app: tauri::AppHandle) -> Result<(), String> {
+    crate::app_log::info("restarting helper sidecar");
     stop_helper(&app);
     let config = load_helper_config().map_err(|err| err.to_string())?;
     spawn_helper_with_config(app, config).map_err(|err| err.to_string())
@@ -74,6 +76,10 @@ fn spawn_helper_with_config(
     app: tauri::AppHandle,
     config: HelperConfig,
 ) -> Result<(), Box<dyn Error>> {
+    crate::app_log::info(format!(
+        "spawning helper sidecar selection_mode={} global_hotkey={}",
+        config.selection_mode, config.global_hotkey
+    ));
     let command = app
         .shell()
         .sidecar("windows-helper")?
@@ -81,6 +87,7 @@ fn spawn_helper_with_config(
         .env("TRANSLATOR_GLOBAL_HOTKEY", &config.global_hotkey);
 
     let (mut rx, child) = command.spawn()?;
+    crate::app_log::info("helper sidecar spawned");
     replace_child(&app, child);
 
     tauri::async_runtime::spawn(async move {
@@ -89,13 +96,21 @@ fn spawn_helper_with_config(
                 CommandEvent::Stdout(line) => {
                     if let Ok(parsed) = serde_json::from_slice::<HelperEvent>(&line) {
                         if matches!(parsed.event.as_str(), "hotkey_trigger" | "selection_text") {
+                            crate::app_log::info(format!(
+                                "helper event={} source={:?} text_len={}",
+                                parsed.event,
+                                parsed.source,
+                                parsed.text.as_deref().map(str::len).unwrap_or(0)
+                            ));
                             let _ = crate::window::show_centered(&app);
                         }
                         let _ = app.emit("helper-event", parsed);
                     }
                 }
                 CommandEvent::Stderr(line) => {
-                    eprintln!("[helper] {}", String::from_utf8_lossy(&line));
+                    let message = String::from_utf8_lossy(&line).to_string();
+                    eprintln!("[helper] {message}");
+                    crate::app_log::warn(format!("[helper] {}", message.trim()));
                 }
                 _ => {}
             }
@@ -120,6 +135,7 @@ fn stop_helper(app: &tauri::AppHandle) {
         .take();
 
     if let Some(child) = child {
+        crate::app_log::info("stopping helper sidecar");
         let _ = child.kill();
     }
 }

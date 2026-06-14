@@ -1,8 +1,11 @@
+use crate::app_log;
 use crate::secure_store;
 use crate::state;
 use crate::state::AppSettings;
 use serde::{Deserialize, Serialize};
 use tauri_plugin_autostart::ManagerExt;
+
+const MAX_REFERENCE_AUDIO_BYTES: u64 = 25 * 1024 * 1024;
 
 fn resolve_api_key(api_key: String) -> Result<String, String> {
     if !api_key.trim().is_empty() {
@@ -23,7 +26,11 @@ fn build_client(proxy_url: &str) -> Result<reqwest::Client, String> {
 }
 
 #[tauri::command]
-pub async fn test_connection(base_url: String, api_key: String, proxy_url: String) -> Result<u64, String> {
+pub async fn test_connection(
+    base_url: String,
+    api_key: String,
+    proxy_url: String,
+) -> Result<u64, String> {
     let key = resolve_api_key(api_key)?;
     let base = base_url.trim_end_matches('/');
     let url = if base.ends_with("/v1") {
@@ -48,7 +55,11 @@ pub async fn test_connection(base_url: String, api_key: String, proxy_url: Strin
 }
 
 #[tauri::command]
-pub async fn fetch_models(base_url: String, api_key: String, proxy_url: String) -> Result<Vec<String>, String> {
+pub async fn fetch_models(
+    base_url: String,
+    api_key: String,
+    proxy_url: String,
+) -> Result<Vec<String>, String> {
     let key = resolve_api_key(api_key)?;
     let base = base_url.trim_end_matches('/');
     let url = if base.ends_with("/v1") {
@@ -67,9 +78,13 @@ pub async fn fetch_models(base_url: String, api_key: String, proxy_url: String) 
         return Err(format!("HTTP {}", resp.status()));
     }
     #[derive(Deserialize)]
-    struct Model { id: String }
+    struct Model {
+        id: String,
+    }
     #[derive(Deserialize)]
-    struct ModelsResponse { data: Vec<Model> }
+    struct ModelsResponse {
+        data: Vec<Model>,
+    }
     let body: ModelsResponse = resp.json().await.map_err(|e| e.to_string())?;
     let mut ids: Vec<String> = body.data.into_iter().map(|m| m.id).collect();
     ids.sort();
@@ -154,18 +169,27 @@ async fn translate_bing(
     };
 
     #[derive(Serialize)]
-    struct BingBody { #[serde(rename = "Text")] text: String }
+    struct BingBody {
+        #[serde(rename = "Text")]
+        text: String,
+    }
     #[derive(Deserialize)]
-    struct BingTranslation { text: String }
+    struct BingTranslation {
+        text: String,
+    }
     #[derive(Deserialize)]
-    struct BingResult { translations: Vec<BingTranslation> }
+    struct BingResult {
+        translations: Vec<BingTranslation>,
+    }
 
     let client = build_client(proxy_url)?;
     let resp = client
         .post(&url)
         .header("Authorization", format!("Bearer {token}"))
         .header("Content-Type", "application/json")
-        .json(&[BingBody { text: text.to_string() }])
+        .json(&[BingBody {
+            text: text.to_string(),
+        }])
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -173,7 +197,10 @@ async fn translate_bing(
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        return Err(format!("Bing HTTP {status}: {}", &body[..body.len().min(200)]));
+        return Err(format!(
+            "Bing HTTP {status}: {}",
+            &body[..body.len().min(200)]
+        ));
     }
 
     let results: Vec<BingResult> = resp.json().await.map_err(|e| e.to_string())?;
@@ -241,8 +268,14 @@ pub async fn translate(
     proxy_url: String,
 ) -> Result<(), String> {
     match provider.as_str() {
-        "bing" => return translate_bing(&app, &source_language, &target_language, &text, &proxy_url).await,
-        "google" => return translate_google(&app, &source_language, &target_language, &text, &proxy_url).await,
+        "bing" => {
+            return translate_bing(&app, &source_language, &target_language, &text, &proxy_url)
+                .await
+        }
+        "google" => {
+            return translate_google(&app, &source_language, &target_language, &text, &proxy_url)
+                .await
+        }
         _ => {}
     }
 
@@ -261,9 +294,16 @@ pub async fn translate(
          Output only the translation, no explanations.\n\n{text}"
     );
     #[derive(Serialize)]
-    struct Message { role: String, content: String }
+    struct Message {
+        role: String,
+        content: String,
+    }
     #[derive(Serialize)]
-    struct ChatRequest { model: String, messages: Vec<Message>, stream: bool }
+    struct ChatRequest {
+        model: String,
+        messages: Vec<Message>,
+        stream: bool,
+    }
 
     let client = build_client(&proxy_url)?;
     let resp = client
@@ -272,7 +312,10 @@ pub async fn translate(
         .header("Content-Type", "application/json")
         .json(&ChatRequest {
             model,
-            messages: vec![Message { role: "user".into(), content: prompt }],
+            messages: vec![Message {
+                role: "user".into(),
+                content: prompt,
+            }],
             stream: true,
         })
         .send()
@@ -305,7 +348,8 @@ pub async fn translate(
                         }
                         if let Ok(val) = serde_json::from_str::<serde_json::Value>(data) {
                             if let Some(content) = val
-                                .get("choices").and_then(|c| c.get(0))
+                                .get("choices")
+                                .and_then(|c| c.get(0))
                                 .and_then(|c| c.get("delta"))
                                 .and_then(|d| d.get("content"))
                                 .and_then(|c| c.as_str())
@@ -332,9 +376,15 @@ pub struct CheckUpdateResult {
 }
 
 #[tauri::command]
-pub async fn check_for_update(current_version: String, dismissed_version: String) -> Result<CheckUpdateResult, String> {
+pub async fn check_for_update(
+    current_version: String,
+    dismissed_version: String,
+) -> Result<CheckUpdateResult, String> {
     #[derive(Deserialize)]
-    struct Release { tag_name: String, html_url: String }
+    struct Release {
+        tag_name: String,
+        html_url: String,
+    }
 
     let client = reqwest::Client::new();
     let resp = client
@@ -366,7 +416,11 @@ pub async fn check_for_update(current_version: String, dismissed_version: String
 fn semver_gt(a: &str, b: &str) -> bool {
     let parse = |s: &str| -> (u64, u64, u64) {
         let mut parts = s.splitn(3, '.').map(|p| p.parse::<u64>().unwrap_or(0));
-        (parts.next().unwrap_or(0), parts.next().unwrap_or(0), parts.next().unwrap_or(0))
+        (
+            parts.next().unwrap_or(0),
+            parts.next().unwrap_or(0),
+            parts.next().unwrap_or(0),
+        )
     };
     parse(a) > parse(b)
 }
@@ -376,6 +430,8 @@ pub struct LoadSettingsResponse {
     pub settings: Option<AppSettings>,
     pub api_key_present: bool,
     pub api_key: String,
+    pub tts_api_key_present: bool,
+    pub tts_api_key: String,
 }
 
 #[derive(Serialize)]
@@ -389,7 +445,14 @@ pub fn load_api_key() -> Result<Option<String>, String> {
     secure_store::load_api_key().map_err(|err| err.to_string())
 }
 
-fn save_settings_transaction<LoadSettings, SaveSettings, DeleteSettings, SaveSecret, DeleteSecret, HasSecret>(
+fn save_settings_transaction<
+    LoadSettings,
+    SaveSettings,
+    DeleteSettings,
+    SaveSecret,
+    DeleteSecret,
+    HasSecret,
+>(
     settings: &AppSettings,
     api_key: &str,
     clear_api_key: bool,
@@ -446,11 +509,18 @@ pub fn load_settings() -> Result<LoadSettingsResponse, String> {
         .ok()
         .flatten()
         .unwrap_or_default();
+    let tts_api_key_present = secure_store::has_tts_api_key().unwrap_or(false);
+    let tts_api_key = secure_store::load_tts_api_key()
+        .ok()
+        .flatten()
+        .unwrap_or_default();
 
     Ok(LoadSettingsResponse {
         settings,
         api_key_present,
         api_key,
+        tts_api_key_present,
+        tts_api_key,
     })
 }
 
@@ -517,6 +587,435 @@ pub fn set_autostart_enabled(app: tauri::AppHandle, enable: bool) -> Result<(), 
     }
 }
 
+#[tauri::command]
+pub fn get_log_path() -> Result<String, String> {
+    Ok(crate::app_log::log_path().display().to_string())
+}
+
+#[tauri::command]
+pub fn save_tts_api_key_command(api_key: String) -> Result<(), String> {
+    if api_key.trim().is_empty() {
+        crate::app_log::info("deleting stored tts api key");
+        secure_store::delete_tts_api_key().map_err(|e| e.to_string())
+    } else {
+        crate::app_log::info("saving stored tts api key");
+        secure_store::save_tts_api_key(&api_key).map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+pub fn load_tts_api_key() -> Result<String, String> {
+    Ok(secure_store::load_tts_api_key()
+        .map_err(|e| e.to_string())?
+        .unwrap_or_default())
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct VoiceProfileParam {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub profile_type: String,
+    #[serde(default)]
+    pub preset_voice_id: String,
+    #[serde(default)]
+    pub reference_audio_path: String,
+}
+
+#[tauri::command]
+pub async fn synthesize_speech(
+    text: String,
+    voice_profile: VoiceProfileParam,
+    tts_provider: String,
+    tts_api_endpoint: String,
+    tts_api_key: String,
+) -> Result<String, String> {
+    crate::app_log::info(format!(
+        "tts requested provider={} endpoint={} voice_type={} voice_id={} text_len={}",
+        tts_provider,
+        tts_api_endpoint.trim_end_matches('/'),
+        voice_profile.profile_type,
+        if voice_profile.preset_voice_id.is_empty() {
+            "<default>"
+        } else {
+            &voice_profile.preset_voice_id
+        },
+        text.len()
+    ));
+
+    // Edge TTS 不需要 API key
+    let key = if tts_provider == "edge" {
+        String::new()
+    } else if tts_api_key.trim().is_empty() {
+        secure_store::load_tts_api_key()
+            .map_err(|e| {
+                crate::app_log::error(format!("tts api key load failed: {e}"));
+                e.to_string()
+            })?
+            .ok_or_else(|| {
+                crate::app_log::warn("tts api key missing");
+                "No TTS API key stored. Enter one in Settings.".to_string()
+            })?
+    } else {
+        tts_api_key
+    };
+
+    let result = match tts_provider.as_str() {
+        "openai" => synthesize_openai(&text, &voice_profile, &tts_api_endpoint, &key).await,
+        "edge" => synthesize_edge(&text, &voice_profile).await,
+        _ => synthesize_mimo(&text, &voice_profile, &tts_api_endpoint, &key).await,
+    };
+
+    if let Err(error) = &result {
+        crate::app_log::error(format!("tts failed provider={tts_provider}: {error}"));
+    }
+
+    result
+}
+
+async fn synthesize_mimo(
+    text: &str,
+    voice_profile: &VoiceProfileParam,
+    tts_api_endpoint: &str,
+    key: &str,
+) -> Result<String, String> {
+    let endpoint = tts_api_endpoint.trim_end_matches('/');
+    let url = format!("{endpoint}/chat/completions");
+
+    let (model, voice_value) = match voice_profile.profile_type.as_str() {
+        "clone" => {
+            let audio_path = &voice_profile.reference_audio_path;
+            if audio_path.is_empty() {
+                crate::app_log::warn("tts clone requested without reference audio path");
+                return Err("No reference audio path configured for clone voice.".to_string());
+            }
+            let metadata = std::fs::metadata(audio_path)
+                .map_err(|e| format!("Failed to inspect reference audio: {e}"))?;
+            let audio_size = metadata.len();
+            crate::app_log::info(format!(
+                "tts clone reference_audio file={} bytes={audio_size}",
+                std::path::Path::new(audio_path)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("<unknown>")
+            ));
+            if audio_size > MAX_REFERENCE_AUDIO_BYTES {
+                let message = format!(
+                    "Reference audio is too large ({audio_size} bytes). Maximum is {MAX_REFERENCE_AUDIO_BYTES} bytes."
+                );
+                crate::app_log::warn(format!("tts clone rejected: {message}"));
+                return Err(message);
+            }
+            let audio_bytes = std::fs::read(audio_path)
+                .map_err(|e| format!("Failed to read reference audio: {e}"))?;
+            let audio_b64 = base64_encode(&audio_bytes);
+            let mime = guess_mime_type(audio_path);
+            (
+                "mimo-v2.5-tts-voiceclone",
+                format!("data:{mime};base64,{audio_b64}"),
+            )
+        }
+        _ => {
+            let voice_id = if voice_profile.preset_voice_id.is_empty() {
+                "mimo_default".to_string()
+            } else {
+                voice_profile.preset_voice_id.clone()
+            };
+            ("mimo-v2.5-tts", voice_id)
+        }
+    };
+
+    #[derive(Serialize)]
+    struct AudioConfig {
+        format: String,
+        voice: String,
+    }
+    #[derive(Serialize)]
+    struct Message {
+        role: String,
+        content: String,
+    }
+    #[derive(Serialize)]
+    struct TtsRequest {
+        model: String,
+        messages: Vec<Message>,
+        audio: AudioConfig,
+    }
+
+    let request = TtsRequest {
+        model: model.to_string(),
+        messages: vec![Message {
+            role: "assistant".into(),
+            content: text.to_string(),
+        }],
+        audio: AudioConfig {
+            format: "wav".into(),
+            voice: voice_value,
+        },
+    };
+
+    crate::app_log::info(format!(
+        "tts mimo request model={model} endpoint={endpoint}"
+    ));
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| {
+            crate::app_log::error(format!("tts mimo client build failed: {e}"));
+            e.to_string()
+        })?;
+
+    let resp = client
+        .post(&url)
+        .header("api-key", key)
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| {
+            crate::app_log::error(format!("tts mimo request failed: {e}"));
+            e.to_string()
+        })?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        let detail = truncate_for_log(&body, 500);
+        crate::app_log::error(format!("tts mimo http status={status} body={detail}"));
+        return Err(format!("TTS HTTP {status}: {detail}"));
+    }
+
+    crate::app_log::info(format!("tts mimo http status={}", resp.status()));
+
+    #[derive(Deserialize)]
+    struct AudioData {
+        data: String,
+    }
+    #[derive(Deserialize)]
+    struct TtsMessage {
+        audio: AudioData,
+    }
+    #[derive(Deserialize)]
+    struct TtsChoice {
+        message: TtsMessage,
+    }
+    #[derive(Deserialize)]
+    struct TtsResponse {
+        choices: Vec<TtsChoice>,
+    }
+
+    let tts_resp: TtsResponse = resp.json().await.map_err(|e| {
+        crate::app_log::error(format!("tts mimo response parse failed: {e}"));
+        e.to_string()
+    })?;
+    let audio_b64 = tts_resp
+        .choices
+        .into_iter()
+        .next()
+        .map(|c| c.message.audio.data)
+        .ok_or_else(|| {
+            crate::app_log::error("tts mimo response contained no audio data");
+            "TTS API returned no audio data.".to_string()
+        })?;
+
+    crate::app_log::info(format!(
+        "tts mimo succeeded audio_base64_len={}",
+        audio_b64.len()
+    ));
+    Ok(audio_b64)
+}
+
+async fn synthesize_openai(
+    text: &str,
+    voice_profile: &VoiceProfileParam,
+    tts_api_endpoint: &str,
+    key: &str,
+) -> Result<String, String> {
+    if voice_profile.profile_type == "clone" {
+        crate::app_log::warn("tts openai does not support clone voice, falling back to preset");
+        return Err("OpenAI Compatible TTS does not support voice cloning. Please use a preset voice.".to_string());
+    }
+
+    let endpoint = tts_api_endpoint.trim_end_matches('/');
+    let url = if endpoint.ends_with("/v1") {
+        format!("{endpoint}/audio/speech")
+    } else {
+        format!("{endpoint}/v1/audio/speech")
+    };
+
+    let voice_id = if voice_profile.preset_voice_id.is_empty() {
+        "alloy".to_string()
+    } else {
+        voice_profile.preset_voice_id.clone()
+    };
+
+    #[derive(Serialize)]
+    struct OpenAiTtsRequest {
+        model: String,
+        voice: String,
+        input: String,
+        response_format: String,
+    }
+
+    crate::app_log::info(format!(
+        "tts openai request model=tts-1 url={url} voice={voice_id} format=mp3"
+    ));
+    let request = OpenAiTtsRequest {
+        model: "tts-1".into(),
+        voice: voice_id,
+        input: text.to_string(),
+        response_format: "mp3".into(),
+    };
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| {
+            crate::app_log::error(format!("tts openai client build failed: {e}"));
+            e.to_string()
+        })?;
+
+    let resp = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {key}"))
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| {
+            crate::app_log::error(format!("tts openai request failed: {e}"));
+            e.to_string()
+        })?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        let detail = truncate_for_log(&body, 500);
+        crate::app_log::error(format!("tts openai http status={status} body={detail}"));
+        return Err(format!("TTS HTTP {status}: {detail}"));
+    }
+
+    crate::app_log::info(format!("tts openai http status={}", resp.status()));
+    let audio_bytes = resp.bytes().await.map_err(|e| {
+        crate::app_log::error(format!("tts openai response read failed: {e}"));
+        e.to_string()
+    })?;
+    crate::app_log::info(format!(
+        "tts openai succeeded audio_bytes={}",
+        audio_bytes.len()
+    ));
+    Ok(base64_encode(&audio_bytes))
+}
+
+async fn synthesize_edge(
+    text: &str,
+    voice_profile: &VoiceProfileParam,
+) -> Result<String, String> {
+    use msedge_tts::tts::client::tokio_runtime::connect_async;
+    use msedge_tts::tts::SpeechConfig;
+    use tokio::time::{timeout, Duration};
+
+    if voice_profile.profile_type == "clone" {
+        crate::app_log::warn("tts edge does not support clone voice");
+        return Err("Edge TTS does not support voice cloning. Please use a preset voice.".to_string());
+    }
+
+    let voice_name = if voice_profile.preset_voice_id.is_empty() {
+        "zh-CN-XiaoxiaoNeural".to_string()
+    } else {
+        voice_profile.preset_voice_id.clone()
+    };
+
+    let config = SpeechConfig {
+        voice_name: voice_name.clone(),
+        audio_format: "audio-24khz-48kbitrate-mono-mp3".to_string(),
+        pitch: 0,
+        rate: 0,
+        volume: 0,
+    };
+
+    crate::app_log::info(format!("tts edge request voice={voice_name}"));
+
+    // 添加 30 秒超时
+    let connect_result = timeout(Duration::from_secs(30), connect_async()).await;
+    let mut client = match connect_result {
+        Ok(Ok(client)) => client,
+        Ok(Err(e)) => {
+            crate::app_log::error(format!("tts edge connect failed: {e}"));
+            return Err(format!("Edge TTS connect failed: {e}"));
+        }
+        Err(_) => {
+            crate::app_log::error("tts edge connect timeout (30s)");
+            return Err("Edge TTS connect timeout. Please check your network or use a proxy.".to_string());
+        }
+    };
+
+    // 添加 60 秒超时
+    let synthesize_result = timeout(Duration::from_secs(60), client.synthesize(text, &config)).await;
+    let audio = match synthesize_result {
+        Ok(Ok(audio)) => audio,
+        Ok(Err(e)) => {
+            crate::app_log::error(format!("tts edge synthesize failed: {e}"));
+            return Err(format!("Edge TTS synthesize failed: {e}"));
+        }
+        Err(_) => {
+            crate::app_log::error("tts edge synthesize timeout (60s)");
+            return Err("Edge TTS synthesize timeout. Please check your network or use a proxy.".to_string());
+        }
+    };
+
+    crate::app_log::info(format!(
+        "tts edge succeeded audio_bytes={}",
+        audio.audio_bytes.len()
+    ));
+
+    Ok(base64_encode(&audio.audio_bytes))
+}
+
+fn truncate_for_log(value: &str, max_len: usize) -> String {
+    value.chars().take(max_len).collect()
+}
+
+fn base64_encode(data: &[u8]) -> String {
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut result = String::new();
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        result.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
+        result.push(CHARS[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            result.push(CHARS[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            result.push('=');
+        }
+        if chunk.len() > 2 {
+            result.push(CHARS[(triple & 0x3F) as usize] as char);
+        } else {
+            result.push('=');
+        }
+    }
+    result
+}
+
+fn guess_mime_type(path: &str) -> &str {
+    let lower = path.to_lowercase();
+    if lower.ends_with(".wav") {
+        "audio/wav"
+    } else if lower.ends_with(".mp3") {
+        "audio/mpeg"
+    } else if lower.ends_with(".ogg") {
+        "audio/ogg"
+    } else if lower.ends_with(".flac") {
+        "audio/flac"
+    } else if lower.ends_with(".m4a") {
+        "audio/mp4"
+    } else {
+        "audio/wav"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::save_settings_transaction;
@@ -539,6 +1038,12 @@ mod tests {
             auto_detect_zh_en_direction: false,
             dismissed_update: "".into(),
             proxy_url: "".into(),
+            tts_enabled: false,
+            tts_provider: "webspeech".into(),
+            tts_auto_play: false,
+            tts_api_endpoint: "https://api.xiaomimimo.com/v1".into(),
+            tts_default_voice_id: "".into(),
+            tts_voice_profiles: vec![],
         }
     }
 

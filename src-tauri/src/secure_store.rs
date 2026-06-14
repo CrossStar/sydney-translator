@@ -3,6 +3,8 @@ use std::fmt::{Display, Formatter};
 
 #[cfg(target_os = "windows")]
 const CREDENTIAL_TARGET: &str = "translator.api_key";
+#[cfg(target_os = "windows")]
+const TTS_CREDENTIAL_TARGET: &str = "translator.tts_api_key";
 
 #[derive(Debug)]
 pub enum SecureStoreError {
@@ -33,7 +35,7 @@ impl Display for SecureStoreError {
 impl Error for SecureStoreError {}
 
 #[cfg(target_os = "windows")]
-pub fn save_api_key(api_key: &str) -> Result<(), SecureStoreError> {
+fn save_secret(target_name: &str, secret_value: &str) -> Result<(), SecureStoreError> {
     use std::ptr;
     use windows_sys::core::PWSTR;
     use windows_sys::Win32::Foundation::{FILETIME, GetLastError};
@@ -41,9 +43,9 @@ pub fn save_api_key(api_key: &str) -> Result<(), SecureStoreError> {
         CredWriteW, CREDENTIALW, CRED_PERSIST_LOCAL_MACHINE, CRED_TYPE_GENERIC,
     };
 
-    let mut target = to_utf16(CREDENTIAL_TARGET)?;
+    let mut target = to_utf16(target_name)?;
     let mut username = to_utf16("translator")?;
-    let mut secret = api_key.as_bytes().to_vec();
+    let mut secret = secret_value.as_bytes().to_vec();
 
     let credential = CREDENTIALW {
         Flags: 0,
@@ -72,12 +74,12 @@ pub fn save_api_key(api_key: &str) -> Result<(), SecureStoreError> {
 }
 
 #[cfg(target_os = "windows")]
-pub fn delete_api_key() -> SecureStoreResult<()> {
+fn delete_secret(target_name: &str) -> SecureStoreResult<()> {
     use windows_sys::core::PCWSTR;
     use windows_sys::Win32::Foundation::GetLastError;
     use windows_sys::Win32::Security::Credentials::{CredDeleteW, CRED_TYPE_GENERIC};
 
-    let target = to_utf16(CREDENTIAL_TARGET)?;
+    let target = to_utf16(target_name)?;
     let ok = unsafe { CredDeleteW(target.as_ptr() as PCWSTR, CRED_TYPE_GENERIC, 0) };
     if ok == 0 {
         let code = unsafe { GetLastError() };
@@ -92,7 +94,7 @@ pub fn delete_api_key() -> SecureStoreResult<()> {
 }
 
 #[cfg(target_os = "windows")]
-pub fn has_api_key() -> SecureStoreResult<bool> {
+fn has_secret(target_name: &str) -> SecureStoreResult<bool> {
     use std::ptr;
     use windows_sys::core::PCWSTR;
     use windows_sys::Win32::Foundation::GetLastError;
@@ -100,7 +102,7 @@ pub fn has_api_key() -> SecureStoreResult<bool> {
         CredFree, CredReadW, CREDENTIALW, CRED_TYPE_GENERIC,
     };
 
-    let target = to_utf16(CREDENTIAL_TARGET)?;
+    let target = to_utf16(target_name)?;
     let mut credential_ptr: *mut CREDENTIALW = ptr::null_mut();
     let ok = unsafe {
         CredReadW(
@@ -125,7 +127,7 @@ pub fn has_api_key() -> SecureStoreResult<bool> {
 }
 
 #[cfg(target_os = "windows")]
-pub fn load_api_key() -> SecureStoreResult<Option<String>> {
+fn load_secret(target_name: &str) -> SecureStoreResult<Option<String>> {
     use std::ptr;
     use std::slice;
     use windows_sys::core::PCWSTR;
@@ -134,7 +136,7 @@ pub fn load_api_key() -> SecureStoreResult<Option<String>> {
         CredFree, CredReadW, CREDENTIALW, CRED_TYPE_GENERIC,
     };
 
-    let target = to_utf16(CREDENTIAL_TARGET)?;
+    let target = to_utf16(target_name)?;
     let mut credential_ptr: *mut CREDENTIALW = ptr::null_mut();
     let ok = unsafe {
         CredReadW(
@@ -169,8 +171,48 @@ pub fn load_api_key() -> SecureStoreResult<Option<String>> {
 
     unsafe { CredFree(credential_ptr.cast()) };
 
-    let api_key = String::from_utf8(secret).map_err(|_| SecureStoreError::Encoding)?;
-    Ok(Some(api_key))
+    let value = String::from_utf8(secret).map_err(|_| SecureStoreError::Encoding)?;
+    Ok(Some(value))
+}
+
+#[cfg(target_os = "windows")]
+pub fn save_api_key(api_key: &str) -> Result<(), SecureStoreError> {
+    save_secret(CREDENTIAL_TARGET, api_key)
+}
+
+#[cfg(target_os = "windows")]
+pub fn delete_api_key() -> SecureStoreResult<()> {
+    delete_secret(CREDENTIAL_TARGET)
+}
+
+#[cfg(target_os = "windows")]
+pub fn has_api_key() -> SecureStoreResult<bool> {
+    has_secret(CREDENTIAL_TARGET)
+}
+
+#[cfg(target_os = "windows")]
+pub fn load_api_key() -> SecureStoreResult<Option<String>> {
+    load_secret(CREDENTIAL_TARGET)
+}
+
+#[cfg(target_os = "windows")]
+pub fn save_tts_api_key(api_key: &str) -> Result<(), SecureStoreError> {
+    save_secret(TTS_CREDENTIAL_TARGET, api_key)
+}
+
+#[cfg(target_os = "windows")]
+pub fn delete_tts_api_key() -> SecureStoreResult<()> {
+    delete_secret(TTS_CREDENTIAL_TARGET)
+}
+
+#[cfg(target_os = "windows")]
+pub fn has_tts_api_key() -> SecureStoreResult<bool> {
+    has_secret(TTS_CREDENTIAL_TARGET)
+}
+
+#[cfg(target_os = "windows")]
+pub fn load_tts_api_key() -> SecureStoreResult<Option<String>> {
+    load_secret(TTS_CREDENTIAL_TARGET)
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -190,6 +232,26 @@ pub fn has_api_key() -> Result<bool, SecureStoreError> {
 
 #[cfg(not(target_os = "windows"))]
 pub fn load_api_key() -> Result<Option<String>, SecureStoreError> {
+    Err(SecureStoreError::UnsupportedPlatform)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn save_tts_api_key(_api_key: &str) -> Result<(), SecureStoreError> {
+    Err(SecureStoreError::UnsupportedPlatform)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn delete_tts_api_key() -> Result<(), SecureStoreError> {
+    Err(SecureStoreError::UnsupportedPlatform)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn has_tts_api_key() -> Result<bool, SecureStoreError> {
+    Err(SecureStoreError::UnsupportedPlatform)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn load_tts_api_key() -> Result<Option<String>, SecureStoreError> {
     Err(SecureStoreError::UnsupportedPlatform)
 }
 

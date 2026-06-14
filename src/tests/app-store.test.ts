@@ -20,7 +20,14 @@ describe('createInitialState', () => {
       customCss: '',
       autoDetectZhEnDirection: false,
       dismissedUpdate: '',
-      proxyUrl: ''
+      proxyUrl: '',
+      ttsEnabled: false,
+      ttsProvider: 'webspeech',
+      ttsAutoPlay: false,
+      ttsApiEndpoint: 'https://api.xiaomimimo.com/v1',
+      ttsApiKeyPresent: false,
+      ttsDefaultVoiceId: '',
+      ttsVoiceProfiles: [],
     });
   });
 
