@@ -48,7 +48,7 @@ export function createInitialState(): {
       dismissedUpdate: '',
       proxyUrl: '',
       ttsEnabled: false,
-      ttsProvider: 'mimo',
+      ttsProvider: 'webspeech',
       ttsAutoPlay: false,
       ttsApiEndpoint: 'https://api.xiaomimimo.com/v1',
       ttsApiKeyPresent: false,

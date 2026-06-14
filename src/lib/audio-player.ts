@@ -1,10 +1,10 @@
 let currentAudio: HTMLAudioElement | null = null;
 
-export function playBase64Wav(base64Data: string): Promise<void> {
+export function playBase64Audio(base64Data: string, mimeType = 'audio/wav'): Promise<void> {
   return new Promise((resolve, reject) => {
     stopPlayback();
 
-    const audio = new Audio(`data:audio/wav;base64,${base64Data}`);
+    const audio = new Audio(`data:${mimeType};base64,${base64Data}`);
     currentAudio = audio;
 
     audio.onended = () => {

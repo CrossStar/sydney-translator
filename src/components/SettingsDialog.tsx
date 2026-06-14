@@ -84,6 +84,16 @@ const OPENAI_PRESET_VOICES = [
   { id: 'shimmer', name: 'Shimmer' },
 ];
 
+// Web Speech API 使用系统内置声音，这里提供常见的中文声音作为示例
+const WEB_SPEECH_VOICES = [
+  { id: 'zh-CN', name: '中文 (系统默认)' },
+  { id: 'zh-TW', name: '繁体中文' },
+  { id: 'en-US', name: 'English (US)' },
+  { id: 'en-GB', name: 'English (UK)' },
+  { id: 'ja-JP', name: '日本語' },
+  { id: 'ko-KR', name: '한국어' },
+];
+
 const DEFAULT_MODELS = [
   'gpt-4o',
   'gpt-4o-mini',
@@ -111,7 +121,7 @@ function buildInitialValues(settings: Settings): SettingsDialogValues {
     autoDetectZhEnDirection: settings.autoDetectZhEnDirection ?? false,
     proxyUrl: settings.proxyUrl ?? '',
     ttsEnabled: settings.ttsEnabled ?? false,
-    ttsProvider: settings.ttsProvider ?? 'mimo',
+    ttsProvider: settings.ttsProvider ?? 'webspeech',
     ttsAutoPlay: settings.ttsAutoPlay ?? false,
     ttsApiEndpoint: settings.ttsApiEndpoint ?? 'https://api.xiaomimimo.com/v1',
     ttsApiKey: '',
@@ -563,6 +573,7 @@ export function SettingsDialog({
                   <span className="settings-row-label">{t(locale, 'label_tts_provider')}</span>
                 </div>
                 <select className="settings-select" value={values.ttsProvider} onChange={(e) => set('ttsProvider', e.target.value as TtsProvider)}>
+                  <option value="webspeech">Web Speech (免费/离线)</option>
                   <option value="mimo">MiMo TTS</option>
                   <option value="openai">{t(locale, 'option_tts_openai')}</option>
                 </select>
@@ -574,65 +585,62 @@ export function SettingsDialog({
                 </div>
                 <Toggle checked={values.ttsAutoPlay} onChange={(value) => set('ttsAutoPlay', value)} />
               </div>
-              <div className="settings-row">
-                <div className="settings-row-left">
-                  <span className="settings-row-label">{t(locale, 'label_tts_auto_play')}</span>
-                  <span className="settings-row-desc">{t(locale, 'desc_tts_auto_play')}</span>
-                </div>
-                <Toggle checked={values.ttsAutoPlay} onChange={(value) => set('ttsAutoPlay', value)} />
-              </div>
-              <div className="settings-row">
-                <div className="settings-row-left">
-                  <span className="settings-row-label">{t(locale, 'label_tts_endpoint')}</span>
-                  <span className="settings-row-desc">{t(locale, 'desc_tts_endpoint')}</span>
-                </div>
-                <input
-                  className="settings-input"
-                  placeholder="https://api.xiaomimimo.com/v1"
-                  type="text"
-                  value={values.ttsApiEndpoint}
-                  onChange={(e) => set('ttsApiEndpoint', e.target.value)}
-                />
-              </div>
-              <div className="settings-row">
-                <div className="settings-row-left">
-                  <span className="settings-row-label">{t(locale, 'label_tts_api_key')}</span>
-                </div>
-                <div className="settings-input-eye-wrap">
+              {values.ttsProvider !== 'webspeech' && (
+                <div className="settings-row">
+                  <div className="settings-row-left">
+                    <span className="settings-row-label">{t(locale, 'label_tts_endpoint')}</span>
+                    <span className="settings-row-desc">{t(locale, 'desc_tts_endpoint')}</span>
+                  </div>
                   <input
-                    className="settings-input settings-input-eye"
-                    placeholder="TTS API Key"
-                    type={showTtsApiKey ? 'text' : 'password'}
-                    value={values.ttsApiKey}
-                    onChange={(e) => setValues((prev) => ({ ...prev, ttsApiKey: e.target.value }))}
-                    onBlur={() => {
-                      if (values.ttsApiKey.trim()) void onSave(values).catch(() => {});
-                    }}
+                    className="settings-input"
+                    placeholder="https://api.xiaomimimo.com/v1"
+                    type="text"
+                    value={values.ttsApiEndpoint}
+                    onChange={(e) => set('ttsApiEndpoint', e.target.value)}
                   />
-                  {values.ttsApiKey && (
-                    <button
-                      aria-label={showTtsApiKey ? 'Hide TTS API key' : 'Show TTS API key'}
-                      className="eye-btn"
-                      tabIndex={-1}
-                      type="button"
-                      onClick={() => setShowTtsApiKey((v) => !v)}
-                    >
-                      {showTtsApiKey ? (
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                          <line x1="1" y1="1" x2="23" y2="23"/>
-                        </svg>
-                      ) : (
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                          <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                      )}
-                    </button>
-                  )}
                 </div>
-              </div>
+              )}
+              {values.ttsProvider !== 'webspeech' && (
+                <div className="settings-row">
+                  <div className="settings-row-left">
+                    <span className="settings-row-label">{t(locale, 'label_tts_api_key')}</span>
+                  </div>
+                  <div className="settings-input-eye-wrap">
+                    <input
+                      className="settings-input settings-input-eye"
+                      placeholder="TTS API Key"
+                      type={showTtsApiKey ? 'text' : 'password'}
+                      value={values.ttsApiKey}
+                      onChange={(e) => setValues((prev) => ({ ...prev, ttsApiKey: e.target.value }))}
+                      onBlur={() => {
+                        if (values.ttsApiKey.trim()) void onSave(values).catch(() => {});
+                      }}
+                    />
+                    {values.ttsApiKey && (
+                      <button
+                        aria-label={showTtsApiKey ? 'Hide TTS API key' : 'Show TTS API key'}
+                        className="eye-btn"
+                        tabIndex={-1}
+                        type="button"
+                        onClick={() => setShowTtsApiKey((v) => !v)}
+                      >
+                        {showTtsApiKey ? (
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                          </svg>
+                        ) : (
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="settings-voice-profiles">
                 <div className="settings-voice-profiles-header">
@@ -641,11 +649,13 @@ export function SettingsDialog({
                     className="btn btn-ghost btn-sm"
                     type="button"
                     onClick={() => {
+                      const defaultVoiceId = values.ttsProvider === 'openai' ? 'alloy' :
+                        values.ttsProvider === 'webspeech' ? 'zh-CN' : 'mimo_default';
                       const newProfile: VoiceProfile = {
                         id: crypto.randomUUID(),
                         name: '',
                         type: 'preset',
-                        presetVoiceId: 'mimo_default',
+                        presetVoiceId: defaultVoiceId,
                         language: '',
                         description: '',
                       };
@@ -706,7 +716,9 @@ export function SettingsDialog({
                             set('ttsVoiceProfiles', next);
                           }}
                         >
-                          {(values.ttsProvider === 'openai' ? OPENAI_PRESET_VOICES : MIMO_PRESET_VOICES).map((v) => (
+                          {(values.ttsProvider === 'openai' ? OPENAI_PRESET_VOICES :
+                            values.ttsProvider === 'webspeech' ? WEB_SPEECH_VOICES :
+                            MIMO_PRESET_VOICES).map((v) => (
                             <option key={v.id} value={v.id}>{v.name}</option>
                           ))}
                         </select>

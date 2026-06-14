@@ -98,7 +98,7 @@ function fromPersistedSettings(settings: PersistedSettings, apiKeyPresent: boole
     dismissedUpdate: settings.dismissed_update ?? '',
     proxyUrl: settings.proxy_url ?? '',
     ttsEnabled: settings.tts_enabled ?? false,
-    ttsProvider: (settings.tts_provider as Settings['ttsProvider']) ?? 'mimo',
+    ttsProvider: (settings.tts_provider as Settings['ttsProvider']) ?? 'webspeech',
     ttsAutoPlay: settings.tts_auto_play ?? false,
     ttsApiEndpoint: settings.tts_api_endpoint ?? 'https://api.xiaomimimo.com/v1',
     ttsApiKeyPresent: false,
